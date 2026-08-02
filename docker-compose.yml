@@ -1,0 +1,291 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# xp-erp-banquet — offline, on-premises LAN appliance.
+#
+# Brings up the whole stack on one box: the Next.js app, a local MongoDB, a
+# self-hosted Soketi realtime server, a Caddy reverse proxy (port 80), and a
+# nightly MongoDB backup. Nothing depends on the internet or any vendor cloud.
+#
+#   docker compose up -d            # build + start everything, survives reboots
+#   docker compose logs -f app      # tail the app
+#   docker compose down             # stop (data persists in named volumes)
+#
+# Configure everything via the .env file next to this file (see .env.example).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Cap every service's logs so they can never fill the disk over months of
+# uptime (unbounded json-file logs are a classic appliance killer). 10 MB × 5
+# files = 50 MB max per service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* are inlined into the browser bundle at BUILD time.
+        # Set NEXT_PUBLIC_PUSHER_HOST to the box's LAN IP/hostname users type.
+        # All default to empty so a partially-filled .env still builds cleanly.
+        # NEXT_PUBLIC_PUSHER_HOST must stay EMPTY for LAN deploys: the browser
+        # connects same-origin through Caddy (/app/*), so there is no host to
+        # hardcode and the box's IP can change freely.
+        NEXT_PUBLIC_PUSHER_KEY: ${NEXT_PUBLIC_PUSHER_KEY:-}
+        NEXT_PUBLIC_PUSHER_HOST: ${NEXT_PUBLIC_PUSHER_HOST:-}
+        NEXT_PUBLIC_PUSHER_PORT: ${NEXT_PUBLIC_PUSHER_PORT:-}
+        NEXT_PUBLIC_PUSHER_CLUSTER: ${NEXT_PUBLIC_PUSHER_CLUSTER:-}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-}
+        NEXT_PUBLIC_HALL_CHARGES_NAME: ${NEXT_PUBLIC_HALL_CHARGES_NAME:-Hall Charges}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      soketi:
+        condition: service_started
+    environment:
+      # ---- Database (local Mongo replica set on the internal docker network) ----
+      # The app uses multi-document transactions, which require a replica set
+      # (not a standalone mongod). Hence the ?replicaSet=rs0 + single-node RS.
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/?replicaSet=rs0}
+      TENANT_DB: ${TENANT_DB:-POS_PROD}
+      # ---- next-auth ----
+      # AUTH_TRUST_HOST makes next-auth follow the request's X-Forwarded-Host
+      # (set by Caddy), so login keeps working when the box's LAN IP changes —
+      # no more hand-editing NEXTAUTH_URL on every WiFi/router change.
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-}
+      # Deliberately NO default: a shared fallback secret across every client
+      # site would let a token minted on one box authenticate on another.
+      # scripts/deploy.ps1 generates a unique one per box and refuses to start
+      # without it.
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required - run scripts/deploy.ps1 to generate .env}
+      SECRET: ${NEXTAUTH_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # ---- Local file storage (Docker volume) ----
+      UPLOAD_DIR: /data/pos_uploads
+      # ---- Realtime: server → local Soketi over the internal network ----
+      PUSHER_APP_ID: ${PUSHER_APP_ID:-pos-app}
+      PUSHER_KEY: ${PUSHER_KEY:-pos-key}
+      PUSHER_SECRET: ${PUSHER_SECRET:?PUSHER_SECRET is required - run scripts/deploy.ps1 to generate .env}
+      PUSHER_HOST: ${PUSHER_HOST:-soketi}
+      PUSHER_PORT: ${PUSHER_PORT:-6001}
+      PUSHER_USE_TLS: ${PUSHER_USE_TLS:-false}
+      PUSHER_CLUSTER: ${PUSHER_CLUSTER:-}
+      # ---- App self-call base (server-to-self) ----
+      APP_URL: ${APP_URL:-http://127.0.0.1:3000}
+      TENANT_SLUG: ${TENANT_SLUG:-pos}
+      NEXT_PUBLIC_HALL_CHARGES_NAME: ${NEXT_PUBLIC_HALL_CHARGES_NAME:-Hall Charges}
+      # ---- First-run setup endpoints (keep false in normal operation) ----
+      ENABLE_SETUP_ENDPOINTS: ${ENABLE_SETUP_ENDPOINTS:-false}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      # ---- Vendor phone-home: leave BLANK to keep all data on the box ----
+      XP_ERP_SECRET: ${XP_ERP_SECRET:-}
+    volumes:
+      - pos_uploads:/data/pos_uploads
+    logging: *default-logging
+    # Checks itself on the static /login page (no DB needed), so the app is
+    # only marked unhealthy when the web server itself is wedged — not when
+    # Mongo is briefly down. autoheal restarts it if this fails.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    # Exposed via Caddy on port 80; uncomment to also reach the app directly.
+    # ports:
+    #   - "3000:3000"
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    logging: *default-logging
+    # Run as a single-node replica set so multi-document transactions work.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      # For Raspberry Pi: back this volume with a USB SSD, never the SD card.
+      - pos_mongo_data:/data/db
+    # The healthcheck doubles as a one-time replica-set initiator: the first
+    # time it runs, rs.status() throws and we rs.initiate() with the member host
+    # set to "mongo" (resolvable on the docker network). Subsequent runs just
+    # report status. The app waits for this to go healthy (service_healthy).
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }",
+        ]
+      interval: 10s
+      timeout: 10s
+      start_period: 40s
+      retries: 30
+    # Not published to the LAN — only the app (internal network) talks to it.
+
+  soketi:
+    image: quay.io/soketi/soketi:1.6-16-debian
+    restart: unless-stopped
+    environment:
+      # Must match the app's PUSHER_* values exactly, or the server can publish
+      # but the browser silently never receives events.
+      SOKETI_DEFAULT_APP_ID: ${PUSHER_APP_ID:-pos-app}
+      SOKETI_DEFAULT_APP_KEY: ${PUSHER_KEY:-pos-key}
+      SOKETI_DEFAULT_APP_SECRET: ${PUSHER_SECRET:?PUSHER_SECRET is required - run scripts/deploy.ps1 to generate .env}
+      SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES: "false"
+      SOKETI_PORT: "6001"
+      SOKETI_METRICS_ENABLED: "false"
+    logging: *default-logging
+    # The Soketi image runs Node 16 (no global fetch), so probe the port with a
+    # plain TCP connect instead.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('net').connect(6001,'127.0.0.1').on('connect',function(){process.exit(0)}).on('error',function(){process.exit(1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+    # Reached by the browser through Caddy (path /app/*). Uncomment to also
+    # expose the ws port directly on the LAN.
+    # ports:
+    #   - "6001:6001"
+
+  caddy:
+    # Custom image with a DNS-provider plugin so it can issue a publicly-trusted
+    # Let's Encrypt cert via DNS-01 for a private-IP box (no browser warnings).
+    build:
+      context: .
+      dockerfile: Caddy.Dockerfile
+      args:
+        # plain (default) = stock caddy, no Go build, offline-friendly. Switch
+        # to `plugin` in .env only when APP_DOMAIN is set and you need ACME.
+        CADDY_VARIANT: ${CADDY_VARIANT:-plain}
+        # Change for a non-Cloudflare DNS provider (also update Caddyfile.tls).
+        DNS_PLUGIN: ${CADDY_DNS_PLUGIN:-github.com/caddy-dns/cloudflare}
+    restart: unless-stopped
+    depends_on:
+      - app
+      - soketi
+    ports:
+      # Users type http://<box-ip>:${POS_HTTP_PORT}. Configurable because
+      # Windows (Hyper-V/WinNAT) sometimes reserves 8080, which makes the bind
+      # fail and leaves NOTHING listening — see DEPLOY.md troubleshooting.
+      - "${POS_HTTP_PORT:-8080}:80"
+      - "${POS_HTTPS_PORT:-8443}:443"   # Only used in APP_DOMAIN/HTTPS mode
+    environment:
+      # Set APP_DOMAIN to switch from HTTP-on-:80 to trusted HTTPS for that name.
+      APP_DOMAIN: ${APP_DOMAIN:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      CADDY_DNS_TOKEN: ${CADDY_DNS_TOKEN:-}
+      # Restrict which client IP ranges may reach the POS (vendor-agnostic device
+      # control at the proxy). Changing the value only needs
+      # `docker compose up -d caddy` (no rebuild).
+      #
+      # The default below is LOAD-BEARING, do not change it to an empty string.
+      # Caddy's {$VAR:default} substitutes its default only when the variable is
+      # UNSET; a set-but-empty value wins and collapses the matcher to
+      # `not remote_ip` with zero ranges -- which matches EVERY request and 403s
+      # the entire LAN. Compose's :- treats empty and unset alike, so resolving
+      # the allow-all value here is what makes `POS_ALLOWED_CIDRS=` in .env
+      # safely mean "allow all devices".
+      # Space-separated (NOT comma-separated) -- this is a Caddy argument list.
+      POS_ALLOWED_CIDRS: ${POS_ALLOWED_CIDRS:-0.0.0.0/0 ::/0}
+    volumes:
+      # Cert + ACME account storage MUST persist, or you re-issue on every
+      # restart and can hit Let's Encrypt rate limits.
+      - pos_caddy_data:/data
+      - pos_caddy_config:/config
+    logging: *default-logging
+    # Checks Caddy's own admin API (localhost:2019), so it reflects Caddy's
+    # health rather than any upstream.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+
+  # NOTE: Backups are now owned by the XP Thermal Service backup subsystem,
+  # which runs natively on the Windows host. Only a Windows-side process can
+  # write dumps to real Windows drives / USB / UNC shares (a container cannot),
+  # so it runs `docker exec mongo mongodump` and copies the archive to each
+  # path configured in the POS "Server Management → Backups" dashboard.
+  #
+  # The old in-container backup service below was disabled because it required
+  # scripts/backup/backup.sh (which was never present) and therefore crash-looped
+  # while writing only into an internal Docker volume that Windows can't reach.
+  # Re-enable it only if you want an extra in-VM dump as a fallback.
+  #
+  # backup:
+  #   image: mongo:7
+  #   restart: unless-stopped
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #   environment:
+  #     MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/?replicaSet=rs0}
+  #     BACKUP_HOUR: ${BACKUP_HOUR:-2}
+  #     RETENTION_DAYS: ${RETENTION_DAYS:-14}
+  #   volumes:
+  #     - ./scripts/backup:/scripts:ro
+  #     - pos_backups:/pos_backups
+  #   entrypoint: ["bash", "/scripts/backup.sh"]
+  #   logging: *default-logging
+
+  # Watchdog: restarts any container that reports "unhealthy". Covers the case
+  # where a process hangs but doesn't exit (so plain `restart:` never fires).
+  # AUTOHEAL_CONTAINER_LABEL=all watches every container that has a healthcheck.
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: all
+      AUTOHEAL_INTERVAL: "15"
+      AUTOHEAL_START_PERIOD: "60"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *default-logging
+
+  # Local DNS so a single hostname (APP_DOMAIN) reaches the box and auto-follows
+  # its IP. OFF by default (profile "dns"); enable on the Linux appliance with:
+  #   docker compose --profile dns up -d
+  # Requires host networking (Linux) so it can serve DNS to the LAN on :53 and
+  # read the LAN interface address. Point the router's DHCP "DNS server" option
+  # at this box so clients resolve APP_DOMAIN here.
+  dnsmasq:
+    build:
+      context: .
+      dockerfile: dns/Dockerfile
+    restart: unless-stopped
+    profiles: ["dns"]
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      LAN_INTERFACE: ${LAN_INTERFACE:-eth0}
+      DNS_UPSTREAM1: ${DNS_UPSTREAM1:-1.1.1.1}
+      DNS_UPSTREAM2: ${DNS_UPSTREAM2:-8.8.8.8}
+    logging: *default-logging
+
+volumes:
+  pos_mongo_data:
+  pos_uploads:
+  pos_backups:
+  pos_caddy_data:
+  pos_caddy_config:

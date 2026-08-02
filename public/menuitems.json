@@ -1,0 +1,3022 @@
+[
+  {
+    "_id": {
+      "$oid": "683ecb297fd4f2c9006349fe"
+    },
+    "name": "Can 330 ml ",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 3,
+    "cost": 2.5,
+    "inStock": 20,
+    "unit": "11",
+    "description": "Soft Drink",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732870871.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-03T10:15:05.623Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T08:08:40.524Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684338a1a685a112fabce7a6"
+    },
+    "name": "Sada Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 2,
+    "cost": 1,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732872272.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T18:51:13.818Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T08:43:33.944Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684338c1a685a112fabce7ab"
+    },
+    "name": "Roghi Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 3,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732873054.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T18:51:45.684Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T08:49:38.216Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435a93ac7ce4429c19fccb"
+    },
+    "name": "Aalu Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732875421.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:16:03.275Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T08:53:51.910Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435abcac7ce4429c19fcd1"
+    },
+    "name": "Aalu Paratha",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 4,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732876185.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:16:44.225Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:02:32.832Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435addac7ce4429c19fcd6"
+    },
+    "name": "Butter Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 4,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732879820.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:17:17.430Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:06:12.448Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435afdac7ce4429c19fcdb"
+    },
+    "name": "Chicken Paratha",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 6,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732883499.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:17:49.195Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:09:55.223Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435b16ac7ce4429c19fce0"
+    },
+    "name": "Chicken Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 7,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732884857.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:18:14.745Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:14:53.422Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435b37ac7ce4429c19fce5"
+    },
+    "name": "Garlic Naan",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732886192.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:18:47.017Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:20:01.708Z"
+    },
+    "__v": 0,
+    "cost": 3
+  },
+  {
+    "_id": {
+      "$oid": "68435fa124d4e913a55aecc9"
+    },
+    "name": "Cold Drink 1.25 Litre ",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 5,
+    "cost": 5.7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732888141.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:37:37.963Z"
+    },
+    "updatedAt": {
+      "$date": "2025-07-03T15:57:12.129Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68435fcc24d4e913a55aecce"
+    },
+    "name": "Cold Drink 2.25 Litre ",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 9,
+    "cost": 8,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732888862.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-06T21:38:20.822Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:24:13.958Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e3c341ff99e89c5a831f"
+    },
+    "name": "Chicken Achari Handi -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 50,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732890507.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:38:11.966Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:28:20.640Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e42441ff99e89c5a833d"
+    },
+    "name": "Chicken Achari Handi - HALF KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 35,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732892571.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:39:48.055Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:35:31.915Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e4a741ff99e89c5a8345"
+    },
+    "name": "Chicken Achari Karahi -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732894452.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:41:59.833Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:36:06.752Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e4f041ff99e89c5a834d"
+    },
+    "name": "Chicken Achari Karahi - HALF KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 15,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732895546.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:43:12.033Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:36:24.590Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e52e41ff99e89c5a8360"
+    },
+    "name": "Kheer (Fresh MILK)",
+    "category": {
+      "$oid": "6846e50d41ff99e89c5a8357"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732897481.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:44:14.874Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:37:53.532Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e55b41ff99e89c5a8368"
+    },
+    "name": "Zarda Large",
+    "category": {
+      "$oid": "6846e50d41ff99e89c5a8357"
+    },
+    "price": 10,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732899462.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:44:59.148Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:40:45.106Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6846e57041ff99e89c5a8370"
+    },
+    "name": "Zarda Small",
+    "category": {
+      "$oid": "6846e50d41ff99e89c5a8357"
+    },
+    "price": 5,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732905655.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T13:45:20.149Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:41:29.701Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847065c4914bd6cb9b613ae"
+    },
+    "name": "Aalu Gosht",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 14,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732910225.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:05:48.984Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:43:31.086Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684706854914bd6cb9b613b6"
+    },
+    "name": "Bhindi",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 10,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732910970.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:06:29.437Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:45:51.947Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684706a24914bd6cb9b613be"
+    },
+    "name": "Bhindi Gosht",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 14,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732912603.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:06:58.722Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:47:49.185Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684706b84914bd6cb9b613c6"
+    },
+    "name": "Daal Chana",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732914391.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:07:20.703Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:52:08.550Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684706d74914bd6cb9b613ce"
+    },
+    "name": "Daal Chana Half",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 5,
+    "cost": 2.5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732916088.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:07:51.772Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:52:25.973Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684706ef4914bd6cb9b613d6"
+    },
+    "name": "Daal Gosht",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 14,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732917845.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:08:15.336Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:56:46.053Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684707824914bd6cb9b613de"
+    },
+    "name": "Daal Mash",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732919610.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:10:42.353Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T09:58:02.961Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708204914bd6cb9b613e6"
+    },
+    "name": "Daal Palak",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732920498.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:13:20.846Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:03:37.912Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708374914bd6cb9b613ee"
+    },
+    "name": "Half Sabzi",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 5,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732922658.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:13:43.670Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:05:31.392Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708584914bd6cb9b613f6"
+    },
+    "name": "Karela Gosht",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732925217.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:14:16.403Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-28T15:02:40.804Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847087a4914bd6cb9b613fe"
+    },
+    "name": "Karela",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732927176.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:14:50.345Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:09:54.845Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847088f4914bd6cb9b61406"
+    },
+    "name": "Kari Pakora",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732929290.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:15:11.419Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:19:42.896Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708b04914bd6cb9b6140e"
+    },
+    "name": "Mix Sabzi  VEG",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732931082.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:15:44.259Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:05:47.805Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708d04914bd6cb9b61416"
+    },
+    "name": "Palak Gosht",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 14,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732932406.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:16:16.280Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:22:56.815Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684708e64914bd6cb9b6141e"
+    },
+    "name": "Shahi Daal",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 12,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732933454.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:16:38.679Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:26:01.983Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684709684914bd6cb9b6142f"
+    },
+    "name": "Chicken Biryani Plate",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 12,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732935451.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:18:48.297Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:31:03.163Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684709944914bd6cb9b61437"
+    },
+    "name": "Chicken Biryani Extra Rice",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 8,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732936633.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:19:32.525Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:31:27.232Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684709af4914bd6cb9b6143f"
+    },
+    "name": "Chicken Pulaow",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 13,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732937561.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:19:59.554Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-11T06:19:45.945Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684709d24914bd6cb9b61447"
+    },
+    "name": "Chicken Tikka Pulaow",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732940214.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:20:34.503Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:36:06.452Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470a814914bd6cb9b6144f"
+    },
+    "name": " Mutton Kabli Pulao",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732941646.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:23:29.626Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:11:30.497Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470a9e4914bd6cb9b61457"
+    },
+    "name": "Pulaow Rice",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 8,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732945371.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:23:58.315Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T18:22:27.102Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470ae64914bd6cb9b61475"
+    },
+    "name": "Mutton Biryani",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732948338.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:25:10.039Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:44:53.019Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470b064914bd6cb9b6147d"
+    },
+    "name": "Chicken Tikka Biryani",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 16,
+    "cost": 8,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732949754.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:25:42.927Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:48:16.800Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470b864914bd6cb9b6148e"
+    },
+    "name": "Chicken Tawa Boti",
+    "category": {
+      "$oid": "68470b2d4914bd6cb9b61485"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732951157.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:27:50.900Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-11T06:15:00.482Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470bac4914bd6cb9b61496"
+    },
+    "name": "Chicken Tawa Makhni",
+    "category": {
+      "$oid": "68470b2d4914bd6cb9b61485"
+    },
+    "price": 20,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732954159.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:28:28.360Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-11T06:15:26.890Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470bc34914bd6cb9b6149e"
+    },
+    "name": "Magaz Masala",
+    "category": {
+      "$oid": "68470b2d4914bd6cb9b61485"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732955676.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:28:51.951Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:51:39.509Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470bd84914bd6cb9b614a6"
+    },
+    "name": "Tawa Keema (Beef)",
+    "category": {
+      "$oid": "68470b2d4914bd6cb9b61485"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732957577.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:29:12.699Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:55:41.613Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470bf14914bd6cb9b614ae"
+    },
+    "name": "Tawa Piece",
+    "category": {
+      "$oid": "68470b2d4914bd6cb9b61485"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732959889.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:29:37.449Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T10:58:29.799Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470c694914bd6cb9b614c5"
+    },
+    "name": "Mutton Achari Karahi - 1KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732960776.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:31:37.360Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:11:07.098Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470cff4914bd6cb9b6151c"
+    },
+    "name": "Mutton Achari Karahi - Half KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732961642.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:34:07.372Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:11:51.984Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470d1d4914bd6cb9b61524"
+    },
+    "name": "Mutton Green Karahi -1 KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732963388.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:34:37.624Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:22:14.720Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470d434914bd6cb9b6152c"
+    },
+    "name": "Mutton Green Karahi -Half KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732965250.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:35:15.092Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:22:25.178Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470d6f4914bd6cb9b6153f"
+    },
+    "name": "Mutton Karahi Plate",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 20,
+    "cost": 9,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733910955.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:35:59.763Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T19:26:57.447Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470d8a4914bd6cb9b61547"
+    },
+    "name": "Mutton Kola Karahi -1KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733925037.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:36:26.184Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-11T06:21:30.050Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470db04914bd6cb9b6154f"
+    },
+    "name": "Mutton Kola Karahi - Half KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731201591.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:37:04.024Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:25:13.906Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470e0b4914bd6cb9b61557"
+    },
+    "name": "Mutton Korma Plate",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732968119.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:38:35.620Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:27:22.364Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470e274914bd6cb9b6155f"
+    },
+    "name": "Mutton Lahori Karahi - 1KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732970549.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:39:03.599Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T17:18:55.832Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470e464914bd6cb9b61567"
+    },
+    "name": "Mutton Lahori Karahi -  Half KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733932134.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:39:34.193Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T17:18:20.275Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470e644914bd6cb9b6156f"
+    },
+    "name": "Mutton Shanwari -1KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732971774.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:40:04.931Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:31:44.086Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470e924914bd6cb9b61577"
+    },
+    "name": "Mutton Shanwari - Half KG ",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732975299.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:40:50.818Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:31:24.133Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470eb84914bd6cb9b6158a"
+    },
+    "name": "Mutton White Karahi -1KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 80,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732976896.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:41:28.780Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:37:26.348Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470ed54914bd6cb9b61592"
+    },
+    "name": "Mutton White Karahi - Half KG",
+    "category": {
+      "$oid": "68470c3b4914bd6cb9b614bc"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733942746.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:41:57.323Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:34:28.536Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470f374914bd6cb9b6159a"
+    },
+    "name": "Chicken Green Karahi -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 50,
+    "cost": 25,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732978569.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:43:35.703Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:39:56.686Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470f554914bd6cb9b615a2"
+    },
+    "name": "Chicken Green Karahi",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731208255.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:44:05.526Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:40:14.774Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470f6f4914bd6cb9b615aa"
+    },
+    "name": "Chicken Karahi Plate",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 13,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732979996.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:44:31.546Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:42:10.696Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470f894914bd6cb9b615b2"
+    },
+    "name": "Chicken Korma Plate",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732984098.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:44:57.540Z"
+    },
+    "updatedAt": {
+      "$date": "2026-01-11T20:04:47.105Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470fae4914bd6cb9b615ba"
+    },
+    "name": "Chicken Lahori Karahi -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731209923.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:45:34.978Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:48:42.051Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68470fd64914bd6cb9b615c2"
+    },
+    "name": "Chicken Lahori Karahi -Half KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731209932.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:46:14.530Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:49:00.432Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684710004914bd6cb9b615ca"
+    },
+    "name": "Chicken Shinwari -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 40,
+    "cost": 20,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732985694.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:46:56.891Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:51:46.892Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684710204914bd6cb9b615d2"
+    },
+    "name": "Chicken Shanwari -Half KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732989925.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:47:28.421Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:52:04.019Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684710514914bd6cb9b615da"
+    },
+    "name": "Chicken Kola Karahi -1KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 50,
+    "cost": 25,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731211812.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:48:17.186Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:54:53.191Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684710664914bd6cb9b615e2"
+    },
+    "name": "Chicken Kola Karahi -Half KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731214069.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:48:38.781Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:55:11.453Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684711394914bd6cb9b61603"
+    },
+    "name": "Chapli Kabab One Piece",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732993405.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:52:09.631Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T11:58:36.576Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847119c4914bd6cb9b6160b"
+    },
+    "name": "Chicken Tikka Achari Boti Plate 8 Pieces",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732994671.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:53:48.764Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:01:02.378Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684711c14914bd6cb9b61613"
+    },
+    "name": "Chicken Green Kabab Plate 4 pieces",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 20,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775732996602.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:54:25.076Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:04:40.860Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684711e04914bd6cb9b6161b"
+    },
+    "name": "Chicken Kabab ",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733000705.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:54:56.826Z"
+    },
+    "updatedAt": {
+      "$date": "2025-07-03T15:45:24.702Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847120a4914bd6cb9b61623"
+    },
+    "name": "Chicken Malai Boti Plate 8 piece",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733003305.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:55:38.488Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:07:21.772Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847124d4914bd6cb9b6162b"
+    },
+    "name": "Chicken Reshmi Kabab Plate 4 pieces",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 28,
+    "cost": 14,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733011578.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:56:45.958Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:09:06.817Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684712934914bd6cb9b61633"
+    },
+    "name": "Chicken Tikka Quarter",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733013767.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:57:55.777Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:10:57.897Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684712c74914bd6cb9b6163b"
+    },
+    "name": "Chicken Tikka Half BBQ",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733015403.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:58:47.940Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:17:18.927Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684712e34914bd6cb9b61643"
+    },
+    "name": "Chicken TIkka Full BBQ",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 30,
+    "cost": 15,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733020754.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:59:15.168Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:18:14.523Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684713014914bd6cb9b6164b"
+    },
+    "name": "MIx PLater -Full",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 90,
+    "cost": 45,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733022698.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T16:59:45.703Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:20:57.107Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847132c4914bd6cb9b61653"
+    },
+    "name": "MIx Plater -Half",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 45,
+    "cost": 22,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733024562.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:00:28.249Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:20:31.256Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684713da4914bd6cb9b6165b"
+    },
+    "name": "Mutton Kabab Plate 4pieces",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 28,
+    "cost": 14,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733028439.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:03:22.704Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:22:05.526Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684715c04914bd6cb9b61719"
+    },
+    "name": "Water 1.5 Litre",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 2,
+    "cost": 1,
+    "inStock": 0,
+    "unit": "12",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733030651.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:11:28.985Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:23:56.171Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684715dc4914bd6cb9b61721"
+    },
+    "name": "Water 500ml",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 1,
+    "cost": 0.5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733031736.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:11:56.316Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:25:34.874Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847169a4914bd6cb9b61755"
+    },
+    "name": "Tandoori Roti",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 1,
+    "cost": 0.5,
+    "inStock": 0,
+    "unit": "1",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733035024.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:15:06.765Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-18T11:49:33.546Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847177d4914bd6cb9b617ce"
+    },
+    "name": "Chicken White Karahi -1Kg",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 50,
+    "cost": 25,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733036999.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:18:53.140Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:35:15.192Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684717914914bd6cb9b617d6"
+    },
+    "name": "Chicken White Karahi - Half Kg",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 25,
+    "cost": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731231478.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:19:13.952Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T12:35:34.152Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684718694914bd6cb9b617f4"
+    },
+    "name": "Karak Small",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 1,
+    "cost": 0.5,
+    "inStock": 0,
+    "unit": "13",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733044234.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:22:49.361Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:04:45.513Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684718784914bd6cb9b617fc"
+    },
+    "name": "Karak Medium",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 3,
+    "cost": 1,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733046870.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:23:04.866Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:04:59.907Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "684718b24914bd6cb9b61804"
+    },
+    "name": "Fresh Milk Tea Small",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 2,
+    "cost": 1.5,
+    "inStock": 0,
+    "unit": "15",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733049870.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-09T17:24:02.871Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-27T19:31:13.988Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847d7c0f85ebb17e2e12dbb"
+    },
+    "name": "Anda Chana",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 9,
+    "cost": 4.5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733052943.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T06:59:12.835Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:08:13.224Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847d957f85ebb17e2e12de6"
+    },
+    "name": "Anda Chana Half",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 6,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733055560.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:05:59.388Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:12:16.249Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847d9c95cd6eedff7ec385e"
+    },
+    "name": "Channa Full",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733058284.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:07:53.633Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:12:30.130Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847da14c00ac59b2e668dc4"
+    },
+    "name": "Haleem Full Plate",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733061001.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:09:08.956Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:14:12.135Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847da8a6f625c2bace7f991"
+    },
+    "name": "Haleem Half",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733063377.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:11:06.412Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:14:27.549Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847daa86f625c2bace7f996"
+    },
+    "name": "Halwa Puri Nashta",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 8,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733065038.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:11:36.620Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:16:59.173Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847dac16f625c2bace7f99b"
+    },
+    "name": "Murg Chana",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 12,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733963015.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:12:01.427Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:20:03.329Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847dae26f625c2bace7f9a0"
+    },
+    "name": "Nehari Beef",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 15,
+    "cost": 7,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733068302.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:12:34.917Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:21:50.989Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847dafb6f625c2bace7f9a5"
+    },
+    "name": "Paya ( Goat )",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 12,
+    "cost": 6,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733069763.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:12:59.999Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:25:28.201Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847df60c4fcd67734c7a836"
+    },
+    "name": "Lassi Sweet",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 4,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733072486.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:31:44.203Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:29:18.510Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847df7cc4fcd67734c7a840"
+    },
+    "name": "Lassi Salty",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 4,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733074341.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:32:12.237Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:30:26.548Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847dfd2c4fcd67734c7a859"
+    },
+    "name": "Kashmiri Medium",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 7,
+    "cost": 4,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733075980.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:33:38.774Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:32:12.374Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847dfefc4fcd67734c7a863"
+    },
+    "name": "Kashmiri Small",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 5,
+    "cost": 2,
+    "inStock": 0,
+    "unit": "14",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733081885.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:34:07.937Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:32:26.058Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6847e398c4fcd67734c7a8f5"
+    },
+    "name": "Paratha",
+    "category": {
+      "$oid": "6843385ba685a112fabce79c"
+    },
+    "price": 1,
+    "cost": 0.5,
+    "inStock": 0,
+    "unit": "2",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733085098.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-06-10T07:49:44.905Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-10T13:34:28.356Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68a9e8ab537bfdd78a871ed0"
+    },
+    "name": "Alu Palak",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733088538.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-08-23T16:13:31.197Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T16:13:31.197Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68a9e8ab537bfdd78a871ece"
+    },
+    "name": "Alu Palak",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 8,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733090995.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-08-23T16:13:31.193Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T16:13:31.193Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68aa0f809fc0923ba0455b36"
+    },
+    "name": "Daal Makhni",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733094018.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-08-23T18:59:12.540Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-23T19:00:24.405Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68becaa97c64dadb3972d8b5"
+    },
+    "name": "Mix Barbq Rice Plater",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 30,
+    "cost": 25,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733097748.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-09-08T12:23:05.597Z"
+    },
+    "updatedAt": {
+      "$date": "2025-09-08T12:23:05.597Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68becaf402d6a3126e0513f2"
+    },
+    "name": "Barbq Rice Plater",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 50,
+    "cost": 40,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733107118.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-09-08T12:24:20.146Z"
+    },
+    "updatedAt": {
+      "$date": "2025-09-08T12:24:20.146Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68becb7f38b6e3dc12139d64"
+    },
+    "name": "Daal Mush Half",
+    "category": {
+      "$oid": "684706104914bd6cb9b613a5"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733117281.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-09-08T12:26:39.140Z"
+    },
+    "updatedAt": {
+      "$date": "2025-09-08T12:26:39.140Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68becc2838b6e3dc12139d69"
+    },
+    "name": "Lahori Chana Half PLate",
+    "category": {
+      "$oid": "6847d752f85ebb17e2e12db0"
+    },
+    "price": 5,
+    "cost": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733126528.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-09-08T12:29:28.286Z"
+    },
+    "updatedAt": {
+      "$date": "2025-09-08T12:29:28.286Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68cb0c490673a7d4d7d931f4"
+    },
+    "name": "Deliery Charge",
+    "category": {
+      "$oid": "683ecaeb7fd4f2c9006349de"
+    },
+    "price": 10,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "\n\n\n\n\n\n\n\n\n\n\n",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733141221.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-09-17T19:30:17.835Z"
+    },
+    "updatedAt": {
+      "$date": "2025-09-17T19:30:17.835Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68e2743487f673685001e876"
+    },
+    "name": "Pakora Half KG",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 15,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733158732.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-05T13:35:48.705Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-16T19:36:34.750Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68e2746487f673685001e879"
+    },
+    "name": "Pakora 1KG",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 30,
+    "cost": 15,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733170582.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-05T13:36:36.225Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-16T19:37:08.995Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68e27c79d35d15a575849948"
+    },
+    "name": "Alu samosa",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 2,
+    "cost": 1,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733180567.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-05T14:11:05.204Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-03T15:07:58.626Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68f14915b7028b239dca89f3"
+    },
+    "name": "Samosa Plate",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733182080.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-16T19:35:49.306Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-03T15:07:48.111Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68f14982b7028b239dca8a03"
+    },
+    "name": "Zarda Rice",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 3,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733184673.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-16T19:37:38.339Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-16T19:37:38.339Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68f3e021f8597cd971be8fa7"
+    },
+    "name": "Dahi Bhalay Small",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733188545.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-18T18:44:49.198Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-03T15:07:20.506Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68f3e03df8597cd971be8fad"
+    },
+    "name": "Dahi Bhalay Full ",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733204874.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-18T18:45:17.380Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-03T15:06:47.359Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "68f3e03df8597cd971be8faf"
+    },
+    "name": "Dahi Bhalay Full ",
+    "category": {
+      "$oid": "68bd3671464174325243b43d"
+    },
+    "price": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733239392.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-10-18T18:45:17.508Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-18T18:45:17.508Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "690c5dd846544da99ee40ddc"
+    },
+    "name": "Fish Biryani",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 15,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733254129.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-11-06T08:35:36.611Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-06T08:35:36.611Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "690c69cc122e0bd0adf94af0"
+    },
+    "name": "FISH Pulao ",
+    "category": {
+      "$oid": "684709154914bd6cb9b61426"
+    },
+    "price": 15,
+    "cost": 10,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733266958.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-11-06T09:26:36.763Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-06T09:29:27.719Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "690c85a596339f76917d2ac4"
+    },
+    "name": "Barbq Fish ",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733280694.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-11-06T11:25:25.297Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-06T11:25:25.297Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "690c877496339f76917d2ac9"
+    },
+    "name": "Fish Fry",
+    "category": {
+      "$oid": "684710d14914bd6cb9b615ea"
+    },
+    "price": 10,
+    "cost": 5,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733306447.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-11-06T11:33:08.659Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-06T11:33:08.659Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6933464e23d6846b24f8f98e"
+    },
+    "name": "chicken Challa Karahi Half KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 35,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731265495.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-12-05T20:53:34.901Z"
+    },
+    "updatedAt": {
+      "$date": "2025-12-05T20:53:34.901Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6933467a39672d53aef83e73"
+    },
+    "name": "Chicken Challa Karahi 1 KG",
+    "category": {
+      "$oid": "6846e37941ff99e89c5a8316"
+    },
+    "price": 70,
+    "inStock": 0,
+    "unit": "",
+    "description": "",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775731265521.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2025-12-05T20:54:18.630Z"
+    },
+    "updatedAt": {
+      "$date": "2025-12-05T20:54:18.630Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976a75c00d3fcd5459ee44"
+    },
+    "name": "12 QAR DEAL",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 12,
+    "inStock": 0,
+    "unit": "",
+    "description": "Chicken Biryani Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733328276.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:54:29.955Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:54:29.955Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976aa2c00d3fcd5459ee49"
+    },
+    "name": "15 QAR Deal",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 15,
+    "inStock": 0,
+    "unit": "",
+    "description": "Kabli Pulao / Mutton Biryani Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733968426.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:55:14.939Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:55:14.939Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976ad56756d78aa3d9ca19"
+    },
+    "name": "13 QAR Deal",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 13,
+    "inStock": 0,
+    "unit": "",
+    "description": "Chicken Biryani Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733368738.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:56:05.855Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:56:05.855Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976b026756d78aa3d9ca1e"
+    },
+    "name": "16 QAR Deal",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 16,
+    "inStock": 0,
+    "unit": "",
+    "description": "Tikka Biryani Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733380053.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:56:50.736Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:56:50.736Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976b21c8461995f00fe709"
+    },
+    "name": "25 QAR Deal",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 25,
+    "inStock": 0,
+    "unit": "",
+    "description": "Tikka Biryani / kabli Pulao Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733401063.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:57:21.853Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:57:21.853Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "69976b34c8461995f00fe70e"
+    },
+    "name": "35 QAR Deal",
+    "category": {
+      "$oid": "69976a17c00d3fcd5459ee3d"
+    },
+    "price": 35,
+    "inStock": 0,
+    "unit": "",
+    "description": "Premium Deal",
+    "image": "https://grey-dot.s3.ap-south-1.amazonaws.com/1775733972887.jpg",
+    "isAvailable": true,
+    "createdAt": {
+      "$date": "2026-02-19T19:57:40.681Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-19T19:57:40.681Z"
+    },
+    "__v": 0
+  }
+]

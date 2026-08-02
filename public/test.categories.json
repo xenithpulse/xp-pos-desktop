@@ -1,0 +1,108 @@
+[{
+  "_id": {
+    "$oid": "683ecaeb7fd4f2c9006349de"
+  },
+  "name": "Drinks",
+  "description": "Liquid_Items",
+  "image": "https://deira-pos.s3.me-south-1.amazonaws.com/1748945641645.jpg",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6843385ba685a112fabce79c"
+  },
+  "name": "Tandoor",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6846e37941ff99e89c5a8316"
+  },
+  "name": "Chicken Items",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6846e50d41ff99e89c5a8357"
+  },
+  "name": "Sweet",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "684706104914bd6cb9b613a5"
+  },
+  "name": "Curry",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "684709154914bd6cb9b61426"
+  },
+  "name": "Rice",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68470b2d4914bd6cb9b61485"
+  },
+  "name": "Tawa Special",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68470c3b4914bd6cb9b614bc"
+  },
+  "name": "Mutton",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "684710d14914bd6cb9b615ea"
+  },
+  "name": "BBQ",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6847d752f85ebb17e2e12db0"
+  },
+  "name": "BreakFast",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68bd3671464174325243b43d"
+  },
+  "name": "Bakery",
+  "description": "",
+  "image": "",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69976a17c00d3fcd5459ee3d"
+  },
+  "name": "Ramadhan",
+  "description": "Ramadhan Menu",
+  "image": "",
+  "__v": 0
+}]
