@@ -795,10 +795,53 @@ ws://127.0.0.1:3998/ws  no cookie -> 401                  (auth works on Node 24
   -> installer\dist\XP-POS-Setup-0.1.0.exe
 ```
 
+**`build.ps1` is the single entry point.** Run it with no arguments and it
+produces the installer. `-StageOnly` opts out of the packaging step for
+iteration.
+
+This was originally the other way round — packaging required an explicit
+`-Package` and a plain run exited 0 after staging. That reads as "the build ran
+for two minutes and did nothing": the payload is invisible unless you know to
+look for it, and the exit code says success. The default now matches what
+someone running a build script actually wants.
+
+`-Package` is still accepted as a no-op so older commands and notes keep
+working.
+
 **118 MB installer from the 438 MB payload** (3.7x, lzma2/max + solid
 compression) — comfortably under the brief's 300–500 MB estimate. Verified as a
 real Inno installer with correct embedded metadata (`ProductName` XP POS,
 `ProductVersion` 0.1.0, `CompanyName` XenithPulse).
+
+### The compiler is auto-fetched — no manual tooling install
+
+Inno Setup 6.7.3 is pinned in `deps.json` like every runtime, and `-Package`
+resolves the compiler in this order:
+
+1. `-IsccPath`, if supplied
+2. a system-wide Inno Setup 6 install
+3. **a portable copy fetched and extracted into `installer\.depcache\`**
+
+Step 3 uses `/PORTABLE=1`, so nothing is written to the registry, Program Files
+or PATH, and the copy is cached for later builds.
+
+This was added after the first packaging run was verified with a portable copy
+living in a throwaway temp directory — which meant the documented command
+failed on a machine that had never had Inno Setup. Verified from a genuinely
+clean state (no system install, no cached copy):
+
+```
+.... Inno Setup not installed - fetching a portable copy
+.... downloading innosetup 6.7.3
+OK   innosetup 6.7.3 verified
+OK   portable Inno Setup 6.7.3 ready (nothing installed to the system)
+OK   using ...\installer\.depcache\innosetup\ISCC.exe
+-> XP-POS-Setup-0.1.0.exe, 118 MB
+```
+
+The hash write is factored into `Set-DepHash` and called twice, because Inno
+Setup is fetched *after* the main `deps.json` write — updating it in one pass
+would have silently discarded an Inno Setup repin under `-UpdateHashes`.
 
 The version is read from `package.json` and passed as `/DAppVersion`, so the
 installer filename, the Add/Remove Programs entry and the app can never
@@ -868,6 +911,115 @@ with a restricted execution policy — group policy on a managed machine, or jus
 the Windows Server default — refuses to run the provisioning script, and the
 install **reports success with nothing configured**.
 
+### Hardening for install on an unknown machine
+
+Three things were changed after asking what happens on a client box rather than
+this one:
+
+1. **A failed provisioning step is no longer silent.** Provisioning used to run
+   from `[Run]`, and **Inno discards a `[Run]` program's exit code** — so if
+   `provision.ps1` failed on site, Setup would still report "completed
+   successfully" while the POS was not running at all. It now runs from
+   `CurStepChanged(ssPostInstall)` where the exit code is checked, and a failure
+   shows what likely went wrong (port blocked, database refused to start,
+   antivirus), where the logs are, and the exact command to retry **without
+   reinstalling**.
+
+2. **PowerShell is invoked by full path** (`{sys}\WindowsPowerShell\v1.0\
+   powershell.exe`, falling back to PATH). A managed or damaged box should not
+   be able to break the one step that configures the whole product through a
+   PATH problem.
+
+3. **MAX_PATH is asserted at build time.** Windows still caps paths at 260
+   characters unless long paths are enabled, and they are **off by default** on
+   Windows 10/11 — a client box is a default box. Current worst case is
+   `C:\Program Files\XP POS` + 118 = **141 characters, 119 to spare**, but a
+   future dependency with a deeply nested `node_modules` could cross it, and
+   that would fail on the customer's machine and not on the developer's. The
+   build now fails instead.
+
+### FIRST REAL INSTALL — verified on a live box (2026-08-03)
+
+The installer was run for real. Health check on the installed machine:
+
+| Check | Result |
+|---|---|
+| Three services registered | `XPPOS-MongoDB`, `XPPOS-App`, `XPPOS-Caddy` all **Running** |
+| Start type | all three `Auto` with **`DelayedAutoStart = True`** |
+| `%BASE%\..\` path expansion in the WinSW XMLs | works — each service found its bundled binary |
+| Database | `setName rs0`, **`isWritablePrimary: true`**, member `PRIMARY` |
+| Multi-document transaction | **committed across 2 collections** on the installed DB |
+| App config via `node --env-file` from ProgramData | works — app started fully configured |
+| Realtime | `[realtime] websocket server attached at /ws` |
+| WebSocket upgrade **through real Caddy** | reached the app → **401** (auth enforced) |
+| `GET /login` through Caddy | **200**, 13,079 bytes |
+| Static asset through Caddy | **200**, 196,474 bytes (staging of `.next/static` correct) |
+| Firewall | `XP POS (TCP 8090)`, enabled, all profiles |
+| Errors across every service log | **none** |
+| Bindings | node `127.0.0.1:3000`, mongod `127.0.0.1:27017`, caddy `:8090` |
+
+Only Caddy is reachable off-box, exactly as designed.
+
+**Two designed behaviours fired in production on the first run:**
+
+1. **Port fallback.** 8080 was already in use, so provisioning moved to **8090**
+   and persisted it to `.env`. The choice is sticky by design — a later run must
+   not migrate a site to a different port and invalidate the URL staff have
+   bookmarked. (8080 was free again afterwards; the install correctly stayed on
+   8090.)
+
+2. **The lockout footgun was neutralised.** `.env` carries the documented
+   default `POS_ALLOWED_CIDRS=` (blank), and the generated `caddy.env` contains
+   the resolved `POS_ALLOWED_CIDRS=0.0.0.0/0 ::/0`. Had Caddy been pointed at
+   `.env` directly, the matcher would have collapsed to `not remote_ip` with no
+   ranges and returned 403 to **every device on the LAN**. This is the single
+   most valuable thing the `caddy.env` layer does, and it did it.
+
+### BOOT TEST — PASSED (the whole point of the project)
+
+Measured from the WinSW wrapper logs after a real reboot:
+
+```
+boot             19:49:54
+services started 19:52:32 / 19:52:33 / 19:52:33   (MongoDB, App, Caddy)
+delta            158 seconds
+```
+
+The services started **on a timer, with nobody logged in**. Docker Desktop could
+never do this — that failure is now closed.
+
+**It was initially reported as a failure**, because checking `services.msc`
+right after the reboot showed all three `Stopped`, and they appeared to start
+only when Chrome was opened. Neither is what happened: opening a browser cannot
+start a Windows service, and 158s is exactly Windows' "Automatic (Delayed
+Start)" behaviour (a 120s default plus dependency ordering). The check simply
+happened inside the delay window.
+
+**But 158 seconds is too slow for a POS.** A restaurant coming back from a power
+cut should not wait two and a half minutes. `services.ps1` now writes a
+per-service `AutoStartDelay` of **30 seconds** (registry, overriding the Windows
+default of 120), tunable via `-StartDelaySeconds`.
+
+It is deliberately **not** 0 and the services are deliberately **not** plain
+`Automatic`: starting during boot means competing with Windows for disk while
+mongod recovers its journal, and Caddy binding before the network stack has
+settled. 30s keeps the safety margin and cuts recovery roughly fivefold.
+
+`services.ps1 -Action Status` now prints the expected delay and states plainly
+that services showing `Stopped` sooner than that is normal — so the next person
+does not report the same non-bug.
+
+A diagnostic note for whoever checks a box next: **"Service Running" proves only
+that the WinSW wrapper started.** During this check Caddy looked dead because a
+port filter did not include 8090. Always resolve the wrapper's child process and
+list *its* sockets:
+
+```powershell
+$p = (Get-CimInstance Win32_Service -Filter "Name='XPPOS-Caddy'").ProcessId
+$kids = Get-CimInstance Win32_Process -Filter "ParentProcessId=$p" | % ProcessId
+Get-NetTCPConnection -State Listen | ? OwningProcess -in $kids
+```
+
 ### NOT verified — needs a test box
 
 The script compiles and the Pascal parses, but **no install, upgrade, or
@@ -875,15 +1027,14 @@ uninstall has actually been run.** This session had no elevation, and installing
 on the dev box would register three services, create `C:\ProgramData\XP POS` and
 add firewall rules — not an appropriate side effect of a build check.
 
-Test in this order, ideally on a VM with a snapshot:
+Fresh install is now **done** (above). Remaining, in priority order:
 
-1. **Fresh install** on a clean Windows 10/11 x64 box. Confirm the staff URL at
-   the end, then seed an admin and take an order.
-2. **The boot test** (still the single most important check in the project):
-   reboot, do NOT log in, and reach the POS from another machine.
+1. ~~**THE BOOT TEST**~~ — **PASSED.** See below.
+2. **Seed the first admin**, take an order from a second device, print a
+   receipt, and run a backup end to end.
 3. **Upgrade**: bump `version` in package.json, rebuild, install over the top.
-   Confirm the database, uploads and `.env` survive and that `services.ps1
-   -Action Status` shows all three running on the new binaries.
+   Confirm the database, uploads and `.env` survive and that all three services
+   come back on the new binaries.
 4. **Uninstall declining data deletion**, then reinstall — the site should come
    back with its data and existing logins intact.
 5. **Uninstall accepting data deletion** — only on a throwaway box.

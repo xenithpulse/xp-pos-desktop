@@ -1,0 +1,87 @@
+# XP POS — handover documents
+
+One document per work package. Each is written so an engineer (or an AI agent in
+a fresh session with no memory of earlier work) can pick it up cold and start.
+
+Read this file first, then the document for your phase.
+
+---
+
+## Where the project stands
+
+The Docker → native Windows migration (Phases 0–8) is **complete and running on
+a real machine**. `NATIVE_MIGRATION_NOTES.md` in the repo root is the record of
+that work: architecture, decisions, and the traps found along the way. Read it
+before touching anything, especially the "traps" sections — several are the kind
+that only appear on a customer's box.
+
+**Current state, verified on a live install:**
+
+- One installer: `installer\dist\XP-POS-Setup-<version>.exe`, ~118 MB
+- Three Windows services (`XPPOS-MongoDB`, `XPPOS-App`, `XPPOS-Caddy`),
+  Automatic (Delayed Start), restart-on-failure
+- Starts unattended after a reboot with nobody logged in — **verified**:
+  services came up 158s after boot with no login. The delay is now tuned to 30s
+- MongoDB single-node replica set, PRIMARY, transactions committing
+- Realtime WebSocket in-process, authenticated, working through Caddy
+- Backups run natively via bundled `mongodump.exe` (xp-thermal-service)
+- Zero Docker
+
+**Build command (the only one):**
+
+```powershell
+.\installer\build.ps1
+```
+
+No tooling needs installing first — every dependency including the Inno Setup
+compiler is pinned in `installer/deps.json` and fetched automatically.
+
+---
+
+## The work packages
+
+| Doc | Phase | Status |
+|---|---|---|
+| [`PHASE-9-BRANDING.md`](PHASE-9-BRANDING.md) | XenithPulse branding of installer, app and services | not started |
+| [`PHASE-10-LICENSING.md`](PHASE-10-LICENSING.md) | 30-day trial, license activation, enforcement | not started |
+| [`PHASE-11-REMOTE-UPDATE.md`](PHASE-11-REMOTE-UPDATE.md) | Updating and supporting a running client box | not started |
+
+Suggested order: **9 → 10 → 11.** Branding is independent and low-risk. Licensing
+should land before any customer gets a build. Remote update is the largest and
+benefits from licensing already existing (it needs the same machine identity).
+
+---
+
+## Ground rules for all phases
+
+These are carried forward from the migration and still apply.
+
+1. **`npx tsc --noEmit` is the primary gate.** It must pass clean before you
+   consider anything done.
+2. **`.\installer\build.ps1` must stay green.** It runs 27 assertions on the
+   payload; do not weaken one to make a build pass.
+3. **Never put mutable state under `C:\Program Files\XP POS`.** It is
+   ACL-restricted and replaced wholesale on upgrade. Site data lives in
+   `C:\ProgramData\XP POS`.
+4. **PowerShell scripts: UTF-8 WITH BOM, ASCII-only string literals.** PS 5.1
+   reads a BOM-less file as CP1252, and a UTF-8 em-dash inside a string decodes
+   to a byte PowerShell treats as a smart quote, silently terminating the
+   string. This has already bitten once.
+5. **Match the existing comment style.** This codebase explains *why*,
+   especially around deployment footguns. That is how it gets supported on
+   client sites.
+6. **Verify by execution, not by reading.** Nearly every real bug in this
+   project was found by running something, not by inspecting it.
+
+## Useful facts you will otherwise rediscover the hard way
+
+- The app binds `127.0.0.1:3000`; **Caddy is the only LAN-facing component**.
+  `HOSTNAME=127.0.0.1` in `XPPOS-App.xml` is load-bearing — unset, Next binds
+  `0.0.0.0` and bypasses the device allow-list.
+- Caddy reads `caddy.env`, **not** `.env`. `caddy.env` is generated with values
+  *resolved*, because Caddy's `{$VAR:default}` only applies when a variable is
+  UNSET — a blank one collapses the device allow-list and 403s the whole LAN.
+- Services run as **LocalSystem**. Mapped drive letters are invisible to them.
+- `provision.ps1` is idempotent and is the supported way to re-apply config.
+- The installed port may not be 8080. Provisioning moves to a free port and
+  persists the choice in `.env`; read it rather than assuming.

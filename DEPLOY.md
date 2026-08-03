@@ -262,13 +262,31 @@ The build happens on the **developer machine**, never on a client box.
 
 ```powershell
 npm ci
-.\installer\build.ps1 -Package
+.\installer\build.ps1
   # -> installer\dist\XP-POS-Setup-<version>.exe
 ```
 
-Requires [Inno Setup 6](https://jrsoftware.org/isdl.php). Every bundled runtime
-is pinned by version and sha256 in `installer/deps.json`; a checksum mismatch
-fails the build. The installer version comes from `package.json`.
+That is the whole command. It fetches and verifies every pinned runtime, type
+checks, builds the app, stages the payload, runs 26 safety assertions, and
+compiles the installer.
+
+**No tooling needs installing first** — not even the Inno Setup compiler. Every
+dependency is pinned by version and sha256 in `installer/deps.json` and fetched
+automatically; a checksum mismatch fails the build. Inno Setup is extracted
+*portably* into `installer\.depcache\`, so nothing is registered on the build
+machine. A system-wide Inno Setup 6 is used instead when present, and
+`-IsccPath <path to ISCC.exe>` overrides both.
+
+The installer version comes from `package.json`.
+
+Optional flags:
+
+```powershell
+.\installer\build.ps1 -SkipBuild     # reuse the last `next build` (iterating only)
+.\installer\build.ps1 -NoMongosh     # drop mongosh, ~135 MB smaller installer
+.\installer\build.ps1 -StageOnly     # stage the payload, skip the installer
+.\installer\build.ps1 -UpdateHashes  # repin after deliberately changing a version
+```
 
 See `NATIVE_MIGRATION_NOTES.md` for the architecture, the decisions behind it,
 and the traps found along the way.

@@ -38,10 +38,14 @@
     technician cannot just download a shell when a site has a data problem at
     9pm on a Saturday. Drop it if installer size matters more than that.
 
+.PARAMETER StageOnly
+    Stop after staging installer\payload and do NOT compile the installer.
+    Only useful when iterating on the payload contents; a normal run produces
+    the .exe.
+
 .PARAMETER Package
-    After staging, compile setup.iss into a single installer .exe. The version
-    is taken from package.json and passed to ISCC, so the installer version can
-    never drift from the application version.
+    Deprecated no-op. Packaging is the default now. Accepted so existing
+    commands and notes keep working.
 
 .PARAMETER IsccPath
     Path to Inno Setup's ISCC.exe. Searched in the usual install locations when
@@ -63,6 +67,8 @@ param(
     [switch]$UpdateHashes,
     [switch]$SkipBuild,
     [switch]$NoMongosh,
+    [switch]$StageOnly,
+    # Deprecated: packaging is the default. Kept so older commands still work.
     [switch]$Package,
     [string]$IsccPath,
     [string]$OutDir
@@ -291,6 +297,24 @@ foreach ($f in $leaked) {
     Write-Ok "removed $($f.Name) from the payload (would have leaked build-machine config)"
 }
 
+# -- CRITICAL: never ship original TypeScript source ------------------------
+# The shipped app is compiled JS. Next's file tracer nonetheless drags the odd
+# .ts/.tsx file into the standalone output - measured: it copied
+# app/api/uploads/[filename]/route.ts verbatim, comments and all. This is a
+# commercial product installed on customer machines, so the source has no
+# business being there. Strip it, then assert below that none survived.
+#
+# node_modules is excluded: third-party packages ship their own .ts typings and
+# removing those can break module resolution at runtime.
+$sourceLeaks = Get-ChildItem (Join-Path $OutDir 'app') -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\' -and $_.Extension -in '.ts', '.tsx', '.jsx' }
+foreach ($f in $sourceLeaks) {
+    # -LiteralPath: route folders contain [brackets], which PowerShell would
+    # otherwise treat as wildcards and silently fail to match.
+    Remove-Item -LiteralPath $f.FullName -Force
+    Write-Ok "removed source file $($f.Name) from the payload"
+}
+
 # -- runtimes ---------------------------------------------------------------
 function Expand-Into {
     param([string]$Archive, [string]$Dest)
@@ -392,6 +416,13 @@ $stray = Get-ChildItem $OutDir -Recurse -Force -Filter '.env*' -ErrorAction Sile
          Where-Object { $_.Name -ne 'env.template' }
 Assert-Payload "no .env leaked into the payload" ($stray.Count -eq 0) ($stray.FullName -join ', ')
 
+# No original TypeScript source outside node_modules. The strip above should
+# have handled it; this catches a future Next version tracing in something new.
+$straySrc = Get-ChildItem $OutDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\' -and $_.Extension -in '.ts', '.tsx', '.jsx' }
+Assert-Payload "no TypeScript source shipped to customers" ($straySrc.Count -eq 0) `
+    (($straySrc | ForEach-Object { $_.Name }) -join ', ')
+
 # The template must still contain its placeholders: provision.ps1 replaces each
 # __GENERATE__ with a per-site secret. If a real .env were copied here by
 # mistake the placeholders would be gone - and every site would share secrets.
@@ -434,6 +465,19 @@ Assert-Payload "mongod.exe executes" ($mongodProbe.ExitCode -eq 0) $mongodProbe.
 $caddyProbe = Invoke-Native -FilePath (Join-Path $OutDir 'caddy\caddy.exe') -Arguments @('version')
 Assert-Payload "caddy.exe executes" ($caddyProbe.ExitCode -eq 0) $caddyProbe.StdErr
 
+# MAX_PATH. Windows still limits paths to 260 characters unless long paths are
+# explicitly enabled, and they are OFF by default on Windows 10/11. A client box
+# is a default box. If a future dependency adds a deeply nested node_modules
+# tree, extraction there would fail on the customer's machine and NOT here -
+# so measure it at build time instead of finding out on site.
+$installRootLen = 'C:\Program Files\XP POS'.Length
+$longest = Get-ChildItem $OutDir -Recurse -File |
+    ForEach-Object { $_.FullName.Length - $OutDir.Length } |
+    Measure-Object -Maximum
+$worstCase = $installRootLen + $longest.Maximum
+Assert-Payload "longest installed path stays under MAX_PATH" ($worstCase -lt 260) `
+    "worst case $worstCase chars (limit 260)"
+
 if ($fail) {
     Write-Host ""
     Write-Err "Payload verification FAILED - do not ship this build."
@@ -453,8 +497,13 @@ Write-Host ("   caddy    : {0}    winsw   : {1}" -f $deps.caddy.version, $deps.w
 Write-Host ""
 
 # ── 6. Package (optional) ────────────────────────────────────────────────────
-if (-not $Package) {
-    Write-Host "   Next: .\installer\build.ps1 -Package   (or run ISCC on setup.iss)" -ForegroundColor DarkGray
+# Packaging is the DEFAULT. This script is the single entry point: run it, get
+# an installer. It previously required an explicit -Package and exited quietly
+# after staging, which reads as "the build silently did nothing" - the payload
+# is invisible unless you go looking for it.
+if ($StageOnly) {
+    Write-Warn "-StageOnly: stopping before the installer is built."
+    Write-Host "         Run without -StageOnly to produce the .exe." -ForegroundColor DarkGray
     Write-Host ""
     exit 0
 }

@@ -58,6 +58,20 @@ param(
     [ValidateSet('XPPOS-MongoDB', 'XPPOS-App', 'XPPOS-Caddy')]
     [string]$Service,
 
+    # Seconds Windows waits after boot before starting these services.
+    #
+    # Windows' built-in default for "Automatic (Delayed Start)" is 120s, and
+    # with dependency ordering that measured 158s to a serving POS on a real
+    # box. For a restaurant coming back from a power cut that is a long time to
+    # stare at a dead tablet, so we shorten it.
+    #
+    # It is NOT set to 0, and the services are NOT plain Automatic: starting
+    # during boot means competing with Windows for disk while mongod recovers
+    # its journal, and Caddy binding its port before the network stack has
+    # settled. 30s keeps the safety and cuts recovery roughly fivefold.
+    [ValidateRange(0, 600)]
+    [int]$StartDelaySeconds = 30,
+
     [string]$InstallDir = "$env:ProgramFiles\XP POS"
 )
 
@@ -186,6 +200,21 @@ function Invoke-Install {
         ) | Out-Null
     }
     Write-Ok "Recovery actions set (restart after 10s / 30s / 60s)"
+
+    # Shorten the delayed-auto-start wait. WinSW's <delayedAutoStart/> sets the
+    # flag but not the delay, and Windows' default is 120s - measured at 158s to
+    # a serving POS after a real reboot. This is a per-service override of
+    # HKLM\SYSTEM\CurrentControlSet\Control\AutoStartDelay.
+    foreach ($svc in $Services) {
+        $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$($svc.Id)"
+        try {
+            New-ItemProperty -Path $key -Name 'AutoStartDelay' -Value $StartDelaySeconds `
+                -PropertyType DWord -Force -ErrorAction Stop | Out-Null
+        } catch {
+            Write-Warn "could not set AutoStartDelay on $($svc.Id): $($_.Exception.Message)"
+        }
+    }
+    Write-Ok "Boot delay set to ${StartDelaySeconds}s (Windows default is 120s)"
 }
 
 # ── Start / Stop ─────────────────────────────────────────────────────────────
@@ -255,7 +284,11 @@ function Invoke-Status {
         foreach ($b in $bad) { Write-Host "           - $($b.Service) [$($b.StartType)]" -ForegroundColor DarkGray }
         Write-Host "         They will not come back on their own after a reboot." -ForegroundColor DarkGray
     } else {
-        Write-Ok "All services are Automatic (Delayed Start) — they start at boot with no user logged in"
+        Write-Ok "All services are Automatic (Delayed Start) - they start at boot with no user logged in"
+        $delay = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\XPPOS-MongoDB" -Name AutoStartDelay -ErrorAction SilentlyContinue).AutoStartDelay
+        if ($null -eq $delay) { $delay = 120 }
+        Write-Host "         Expect the POS to answer about ${delay}s after a reboot." -ForegroundColor DarkGray
+        Write-Host "         Checking sooner than that will show them Stopped - that is normal." -ForegroundColor DarkGray
     }
 }
 

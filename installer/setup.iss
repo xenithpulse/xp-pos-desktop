@@ -100,17 +100,11 @@ Filename: "{app}\redist\vc_redist.x64.exe"; \
     StatusMsg: "Installing the Microsoft Visual C++ runtime..."; \
     Flags: waituntilterminated; Check: NeedsVCRedist
 
-; ── 2. Provision ───────────────────────────────────────────────────────────
-; Configuration, replica set, services, firewall. See installer/scripts.
-;
-; -ExecutionPolicy Bypass is load-bearing: a client box may have a restricted
-; execution policy (group policy on a managed machine, or just the default
-; Restricted on Windows Server), and without this the script silently refuses
-; to run and the install "succeeds" with nothing configured.
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -NonInteractive -File ""{app}\scripts\provision.ps1"" -InstallDir ""{app}"""; \
-    StatusMsg: "Configuring the POS (database, services, firewall)..."; \
-    Flags: waituntilterminated runhidden
+; NOTE: provisioning is deliberately NOT here. Entries in [Run] ignore the
+; program's exit code, so a failed provisioning step would still show
+; "Setup completed successfully" and leave a broken POS behind. It runs from
+; CurStepChanged(ssPostInstall) instead, where the result can be checked and
+; reported. See RunProvisioning below.
 
 [UninstallDelete]
 ; Generated at provisioning time, not shipped, so Inno does not know about them.
@@ -128,6 +122,18 @@ const
 
 function IsProcessorFeaturePresent(Feature: DWORD): BOOL;
   external 'IsProcessorFeaturePresent@kernel32.dll stdcall';
+
+{ Full path to PowerShell rather than a bare "powershell.exe".
+  A client box may have a damaged or hijacked PATH, and resolving the one step
+  that configures the whole product through PATH is not worth the risk.
+  Declared early: Inno's Pascal Script is single-pass, so a helper must appear
+  before every function that calls it. }
+function PowerShellExe: string;
+begin
+  Result := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(Result) then
+    Result := 'powershell.exe';   { fall back and hope PATH is sane }
+end;
 
 function GetFileVersionSafe(const FileName: string): string;
 var
@@ -197,7 +203,7 @@ begin
 
   WizardForm.StatusLabel.Caption := 'Stopping the existing POS services...';
 
-  if not Exec('powershell.exe',
+  if not Exec(PowerShellExe,
        '-NoProfile -ExecutionPolicy Bypass -NonInteractive -File "' + ScriptPath +
        '" -Action Stop -InstallDir "' + ExpandConstant('{app}') + '"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
@@ -223,6 +229,73 @@ begin
   Sleep(3000);
 end;
 
+{ ── Provisioning ──────────────────────────────────────────────────────────
+  Configuration, replica set, services, firewall. See installer/scripts.
+
+  Runs here rather than in [Run] because [Run] discards the exit code: a failed
+  provisioning step would still finish with "Setup completed successfully" and
+  the technician would leave a site with no working POS. Here we can check the
+  result and say what actually happened.
+
+  -ExecutionPolicy Bypass is load-bearing. A client box may have a restricted
+  execution policy (group policy on a managed machine, or the Windows Server
+  default), and without it the script refuses to run at all. }
+procedure RunProvisioning;
+var
+  ResultCode: Integer;
+  ScriptPath: string;
+  LogHint: string;
+begin
+  ScriptPath := ExpandConstant('{app}\scripts\provision.ps1');
+  LogHint := #13#10#13#10 +
+             'Logs:   ' + ExpandConstant('{#DataRoot}') + '\logs' + #13#10 +
+             'Status: right-click PowerShell, Run as administrator, then:' + #13#10 +
+             '  & "' + ExpandConstant('{app}\scripts\services.ps1') + '" -Action Status';
+
+  if not FileExists(ScriptPath) then
+  begin
+    MsgBox('Setup could not find its configuration script:' + #13#10#13#10 +
+           ScriptPath + #13#10#13#10 +
+           'The installation is incomplete. Please reinstall.',
+           mbCriticalError, MB_OK);
+    Exit;
+  end;
+
+  WizardForm.StatusLabel.Caption := 'Configuring the POS (database, services, firewall)...';
+
+  if not Exec(PowerShellExe,
+       '-NoProfile -ExecutionPolicy Bypass -NonInteractive -File "' + ScriptPath +
+       '" -InstallDir "' + ExpandConstant('{app}') + '"',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    MsgBox('Setup could not start Windows PowerShell to configure the POS.' + #13#10#13#10 +
+           'The files were installed but nothing is running yet.' + LogHint,
+           mbCriticalError, MB_OK);
+    Exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    { Do not pretend this worked. The files are on disk but the services are
+      not necessarily running, and the site has no POS until someone looks. }
+    MsgBox('The POS was installed, but the configuration step failed ' +
+           '(exit code ' + IntToStr(ResultCode) + ').' + #13#10#13#10 +
+           'The POS is NOT running yet. Common causes:' + #13#10 +
+           '  - the chosen port is blocked or already in use' + #13#10 +
+           '  - the database could not start (check the log below)' + #13#10 +
+           '  - antivirus blocked one of the bundled programs' + #13#10#13#10 +
+           'You can retry without reinstalling by running, as administrator:' + #13#10 +
+           '  & "' + ExpandConstant('{app}\scripts\provision.ps1') + '"' + LogHint,
+           mbCriticalError, MB_OK);
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    RunProvisioning;
+end;
+
 { ── Uninstall ─────────────────────────────────────────────────────────────
   Services must be unregistered while their wrapper executables still exist, so
   this runs before Inno deletes anything. }
@@ -236,7 +309,7 @@ begin
   begin
     ScriptPath := ExpandConstant('{app}\scripts\services.ps1');
     if FileExists(ScriptPath) then
-      Exec('powershell.exe',
+      Exec(PowerShellExe,
         '-NoProfile -ExecutionPolicy Bypass -NonInteractive -File "' + ScriptPath +
         '" -Action Uninstall -InstallDir "' + ExpandConstant('{app}') + '"',
         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -244,7 +317,7 @@ begin
 
     { Remove the firewall rules this install created. Leaving an open inbound
       port behind after an uninstall would be sloppy at best. }
-    Exec('powershell.exe',
+    Exec(PowerShellExe,
       '-NoProfile -ExecutionPolicy Bypass -NonInteractive -Command ' +
       '"Get-NetFirewallRule -DisplayName ''XP POS (TCP *'' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue"',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
