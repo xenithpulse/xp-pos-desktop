@@ -136,7 +136,11 @@ interface CreateOrderPayload {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  // `license: 'write'` is on the CREATE path only. An unlicensed box goes
+  // read-only, and read-only for a restaurant means "no new orders" - the
+  // fifteen tables already mid-meal must still be editable, payable and
+  // printable, so PATCH/PUT on an existing order is deliberately not gated.
+  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders', license: 'write' });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();

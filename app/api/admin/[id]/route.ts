@@ -34,7 +34,7 @@ interface AdminUpdatePayload {
 export async function PUT(request: NextRequest) {
   const id = extractId(request, 3);
 
-  const denied = await isAdminRequest({ requiredPerm: "manage_staff" });
+  const denied = await isAdminRequest({ requiredPerm: "manage_staff", license: "write" });
   if (denied) return denied;
 
   const conn = await mongooseConnect();
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const id = extractId(request, 3);
 
-  const denied = await isAdminRequest({ requiredPerm: "manage_staff" });
+  const denied = await isAdminRequest({ requiredPerm: "manage_staff", license: "write" });
   if (denied) return denied;
 
   const conn = await mongooseConnect();

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import AccessControl from "@/components/layout/AccessControl";
+import LicenseNotice from "@/components/layout/LicenseNotice";
 import { AdminPermission } from "@/models/schemas/admin.schema";
 import { usePOSStore } from "@/stores/posStore";
 import {
@@ -235,6 +236,11 @@ function MainContentWithToggle({
       style={{ marginLeft }}
       className="flex-1 p-0 overflow-auto text-black transition-[margin] duration-300 ease-out"
     >
+      {/* OUTSIDE AccessControl on purpose. A waiter who lands on a page their
+          role cannot open still needs to be told the POS is about to stop
+          taking new orders - and AccessControl replaces its children entirely.
+          It renders nothing at all on a licensed box. */}
+      <LicenseNotice />
       <AccessControl
         allowedRoles={accessConfig.allowedRoles ?? []}
         requiredPermissions={accessConfig.requiredPermissions ?? []}

@@ -100,6 +100,24 @@
     ]
   },
 
+  "signtool": {
+    "version": "10.0.28000.2526",
+    "url": "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/10.0.28000.2526/microsoft.windows.sdk.buildtools.10.0.28000.2526.nupkg",
+    "sha256": "A09A4C9D68160CED4765137A9A7444EA560EA86C45D6A77093DEA58C2F7563A0",
+    "//": [
+      "BUILD-MACHINE TOOL, not shipped to clients - it Authenticode-signs the",
+      "installer and the three WinSW service wrappers.",
+      "",
+      "This is the Microsoft.Windows.SDK.BuildTools NuGet package (a .nupkg is",
+      "just a zip) rather than the full Windows SDK, which is a multi-gigabyte",
+      "system install. Only bin/<ver>/x64/signtool.exe (538 KB) is used, and it",
+      "is extracted into .depcache - nothing is installed on the machine.",
+      "",
+      "Fetched only when signing is actually requested, so a developer build",
+      "with no certificate never downloads it."
+    ]
+  },
+
   "innosetup": {
     "version": "6.7.3",
     "url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe",

@@ -223,7 +223,7 @@ function Invoke-Start {
     Write-Step "Starting services$(if ($Service) { " ($Service)" })"
     foreach ($svc in $targets) {
         if (-not (Test-ServiceExists $svc.Id)) {
-            Write-Warn "$($svc.Id) is not registered — skipping"
+            Write-Warn "$($svc.Id) is not registered - skipping"
             continue
         }
         $s = Get-Service -Name $svc.Id

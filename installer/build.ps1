@@ -47,6 +47,30 @@
     Deprecated no-op. Packaging is the default now. Accepted so existing
     commands and notes keep working.
 
+.PARAMETER SignThumbprint
+    SHA-1 thumbprint of a code-signing certificate in the Windows certificate
+    store. When supplied, the three service wrappers AND the finished installer
+    are Authenticode-signed.
+
+    A thumbprint is used rather than a .pfx path on purpose: since June 2023,
+    publicly-trusted code-signing keys must live on a hardware token, HSM, or
+    cloud signing service, none of which hand you a file. Reading the cert from
+    the store is the form that works with all of them.
+
+    Find yours with:
+        Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+            Select-Object Thumbprint, Subject, NotAfter
+
+    Omit it and the build still works - it just prints the NOT CODE-SIGNED
+    warning, which is what developer builds should do.
+
+.PARAMETER TimestampUrl
+    RFC 3161 timestamp server. Defaults to DigiCert's.
+
+    Timestamping is NOT optional for a release. Without it every signature -
+    including on installers already sitting on customer machines - becomes
+    invalid the day the certificate expires.
+
 .PARAMETER IsccPath
     Path to Inno Setup's ISCC.exe. Searched in the usual install locations when
     not given.
@@ -70,6 +94,8 @@ param(
     [switch]$StageOnly,
     # Deprecated: packaging is the default. Kept so older commands still work.
     [switch]$Package,
+    [string]$SignThumbprint,
+    [string]$TimestampUrl = 'http://timestamp.digicert.com',
     [string]$IsccPath,
     [string]$OutDir
 )
@@ -218,6 +244,133 @@ if ($UpdateHashes) {
     Write-Ok "deps.json hashes updated in place - COMMIT THIS"
 }
 
+# ── Code signing ─────────────────────────────────────────────────────────────
+
+<#
+    Authenticode-sign a set of files.
+
+    Two things need signing, and they are signed at DIFFERENT points in the
+    build:
+
+      1. The three service\XPPOS-*.exe wrappers, signed during STAGING - before
+         Inno compresses them into the installer. Signing them afterwards is
+         impossible; they are inside the .exe by then. These are renamed copies
+         of WinSW, whose own releases ship unsigned, so without this step three
+         unsigned executables get registered as Windows services on every
+         customer machine - exactly the pattern endpoint protection flags.
+
+      2. The finished installer, signed after ISCC returns.
+
+    Returns $true when everything signed, $false otherwise. A signing failure
+    must fail the build: shipping a half-signed installer is worse than shipping
+    an unsigned one, because the inconsistency looks like tampering.
+#>
+function Invoke-SignFiles {
+    param(
+        [string[]]$Files,
+        [string]$What
+    )
+    if (-not $SignThumbprint) { return $true }
+
+    $signtool = Get-SignToolPath
+    if (-not $signtool) { return $false }
+
+    foreach ($file in $Files) {
+        if (-not (Test-Path -LiteralPath $file)) {
+            Write-Err "cannot sign missing file: $file"
+            return $false
+        }
+        $r = Invoke-Native -FilePath $signtool -Arguments @(
+            'sign',
+            '/sha1', $SignThumbprint,
+            '/fd', 'sha256',          # file digest
+            '/tr', $TimestampUrl,     # RFC 3161 timestamp
+            '/td', 'sha256',          # timestamp digest
+            '/q',
+            $file
+        )
+        if ($r.ExitCode -ne 0) {
+            Write-Err "signing failed for $(Split-Path $file -Leaf) (exit $($r.ExitCode))"
+            if ($r.StdOut) { Write-Host "         $($r.StdOut.Trim())" -ForegroundColor DarkGray }
+            if ($r.StdErr) { Write-Host "         $($r.StdErr.Trim())" -ForegroundColor DarkGray }
+            return $false
+        }
+    }
+    Write-Ok "signed $($Files.Count) file(s): $What"
+    return $true
+}
+
+<#
+    Resolve signtool.exe, fetching it only when signing was actually requested.
+
+    Uses the Microsoft.Windows.SDK.BuildTools NuGet package rather than the full
+    Windows SDK - a .nupkg is a zip, and only the 538 KB signtool.exe is needed.
+    Extracted into .depcache; nothing is installed on the machine.
+#>
+function Get-SignToolPath {
+    $dir = Join-Path $CacheDir 'signtool'
+    $cached = Get-ChildItem $dir -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+              Where-Object { $_.DirectoryName -match 'x64' } | Select-Object -First 1
+    if ($cached) { return $cached.FullName }
+
+    # A system-wide SDK install is fine too, if one happens to be present.
+    foreach ($root in @("${env:ProgramFiles(x86)}\Windows Kits\10\bin", "$env:ProgramFiles\Windows Kits\10\bin")) {
+        if (Test-Path $root) {
+            $sys = Get-ChildItem $root -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+                   Where-Object { $_.DirectoryName -match 'x64' } |
+                   Sort-Object FullName -Descending | Select-Object -First 1
+            if ($sys) { return $sys.FullName }
+        }
+    }
+
+    Write-Host "    .... fetching signtool (Windows SDK BuildTools)" -ForegroundColor DarkGray
+    $pkg = Get-Dependency -Name 'signtool' -Dep $deps.signtool
+    if ($UpdateHashes) { Set-DepHash -Hashes @{ signtool = $deps.signtool.sha256 } }
+
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    # Expand-Archive refuses a .nupkg extension; copy to .zip first.
+    $zip = Join-Path $CacheDir 'signtool.zip'
+    Copy-Item $pkg $zip -Force
+    Expand-Archive -Path $zip -DestinationPath $dir -Force
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+
+    $found = Get-ChildItem $dir -Recurse -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+             Where-Object { $_.DirectoryName -match 'x64' } | Select-Object -First 1
+    if (-not $found) {
+        Write-Err "signtool.exe not found inside the SDK BuildTools package."
+        return $null
+    }
+    Write-Ok "signtool $($deps.signtool.version) ready (nothing installed to the system)"
+    return $found.FullName
+}
+
+# Validate the certificate up front rather than after a ten-minute build.
+if ($SignThumbprint) {
+    $SignThumbprint = $SignThumbprint -replace '[^0-9A-Fa-f]', ''
+    $cert = $null
+    foreach ($store in @('Cert:\CurrentUser\My', 'Cert:\LocalMachine\My')) {
+        $c = Get-ChildItem $store -ErrorAction SilentlyContinue |
+             Where-Object { $_.Thumbprint -eq $SignThumbprint }
+        if ($c) { $cert = $c; break }
+    }
+    if (-not $cert) {
+        Write-Err "No certificate with thumbprint $SignThumbprint in CurrentUser\My or LocalMachine\My."
+        Write-Host "         List available certificates with:" -ForegroundColor DarkGray
+        Write-Host "         Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select Thumbprint,Subject" -ForegroundColor DarkGray
+        exit 1
+    }
+    if ($cert.NotAfter -lt (Get-Date)) {
+        Write-Err "That certificate EXPIRED on $($cert.NotAfter.ToShortDateString())."
+        exit 1
+    }
+    Write-Step "Code signing enabled"
+    Write-Ok "certificate: $($cert.Subject)"
+    Write-Ok "expires    : $($cert.NotAfter.ToShortDateString())"
+    if ($cert.NotAfter -lt (Get-Date).AddDays(30)) {
+        Write-Warn "expires in under 30 days - renew before the next release"
+    }
+}
+
 # ── 3. Build the app ─────────────────────────────────────────────────────────
 Write-Step "Building the application"
 
@@ -238,11 +391,21 @@ try {
         # - a route deleted months earlier, still referenced by a leftover
         # validator.ts. It looks exactly like a source defect and is not one.
         # Docker never hit this because it always built in a clean container.
-        foreach ($stale in @('.next', 'tsconfig.tsbuildinfo')) {
+        # installer\payload goes too, and it must go BEFORE next build, not just
+        # before staging.
+        #
+        # Next's tracer resolves a dynamic path by globbing for the literal
+        # filenames around it - scripts\apply-update.ps1, XP-POS-Setup-*.exe -
+        # and pulls in every match under the repo. Last build's payload contains
+        # both, so leaving it here means this build packages the previous one.
+        # Measured at 1,483 MB before this line existed. It is regenerated from
+        # scratch during staging, so nothing is lost. installer\dist is left
+        # alone: those are finished releases, not scratch space.
+        foreach ($stale in @('.next', 'tsconfig.tsbuildinfo', 'installer\payload')) {
             $p = Join-Path $RepoRoot $stale
             if (Test-Path $p) { Remove-Item -Recurse -Force $p }
         }
-        Write-Ok "cleared .next and tsconfig.tsbuildinfo"
+        Write-Ok "cleared .next, tsconfig.tsbuildinfo and the previous payload"
 
         # Type check is the primary gate and is cheap relative to a bad release.
         $tsc = Invoke-Native -FilePath 'npx' -Arguments @('tsc', '--noEmit')
@@ -372,11 +535,22 @@ Write-Ok "caddy.exe $($deps.caddy.version)"
 
 # WinSW resolves its config as <own-exe-name>.xml, so each service needs its own
 # renamed copy of the same wrapper binary.
+$wrapperExes = @()
 foreach ($svc in @('XPPOS-MongoDB', 'XPPOS-App', 'XPPOS-Caddy')) {
-    Copy-Item $archives['winsw'] (Join-Path $OutDir "service\$svc.exe") -Force
+    $dest = Join-Path $OutDir "service\$svc.exe"
+    Copy-Item $archives['winsw'] $dest -Force
     Copy-Item (Join-Path $InstallerDir "service\$svc.xml") (Join-Path $OutDir "service\$svc.xml") -Force
+    $wrapperExes += $dest
 }
 Write-Ok "3 WinSW wrappers $($deps.winsw.version)"
+
+# Sign the wrappers HERE - this is the last moment it is possible. Once Inno
+# packages them they are compressed inside the installer and out of reach.
+if (-not (Invoke-SignFiles -Files $wrapperExes -What 'service wrappers')) {
+    Write-Err "Could not sign the service wrappers - aborting."
+    Write-Host "         A half-signed installer is worse than an unsigned one." -ForegroundColor DarkGray
+    exit 1
+}
 
 # -- scripts and config -----------------------------------------------------
 Copy-Item (Join-Path $InstallerDir 'scripts\*') (Join-Path $OutDir 'scripts') -Recurse -Force
@@ -405,9 +579,49 @@ foreach ($rel in @(
     'service\XPPOS-MongoDB.exe', 'service\XPPOS-MongoDB.xml',
     'service\XPPOS-Caddy.exe', 'service\XPPOS-Caddy.xml',
     'scripts\provision.ps1', 'scripts\services.ps1', 'scripts\rs-init.mjs',
+    'scripts\apply-update.ps1',
     'config\env.template', 'config\mongod.cfg', 'config\Caddyfile.http'
 )) {
     Assert-Payload "present: $rel" (Test-Path (Join-Path $OutDir $rel))
+}
+
+# Every shipped PowerShell script must be UTF-8 WITH a byte-order mark and pure
+# ASCII in its string literals.
+#
+# This is not pedantry. Windows PowerShell 5.1 reads a BOM-less .ps1 as CP1252,
+# and a UTF-8 em-dash then decodes to a byte PowerShell treats as a smart quote,
+# which silently terminates whatever string it lands in - the script fails to
+# parse with an error pointing at the next word. It has bitten this project once
+# already (see the note at the top of services.ps1). A build machine with a
+# different editor default is all it takes to reintroduce it, and the failure
+# only shows up on a client box during provisioning.
+#
+# Non-ASCII inside a comment is harmless - the tokenizer skips comments - which
+# is why the help headers here are allowed their box-drawing characters and
+# em-dashes. So the check TOKENISES the script with PowerShell's own parser and
+# looks at everything that is not a comment, rather than guessing at comment
+# syntax with a regex. A line-based check cannot see inside a <# #> block and
+# reports every documentation header as a violation.
+#
+# This found a real one when it was added: an em-dash inside a string literal in
+# services.ps1, which would have gone off the moment that file lost its BOM.
+foreach ($ps1 in Get-ChildItem (Join-Path $OutDir 'scripts') -Filter '*.ps1' -File) {
+    $bytes = [System.IO.File]::ReadAllBytes($ps1.FullName)
+    $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    Assert-Payload "$($ps1.Name) is UTF-8 with a BOM" $hasBom `
+        "PowerShell 5.1 would read it as CP1252"
+
+    $text = [System.IO.File]::ReadAllText($ps1.FullName, [System.Text.Encoding]::UTF8)
+    $parseErrors = $null
+    $tokens = [System.Management.Automation.PSParser]::Tokenize($text, [ref]$parseErrors)
+    Assert-Payload "$($ps1.Name) parses as PowerShell" ($parseErrors.Count -eq 0) `
+        ($parseErrors | Select-Object -First 1 | ForEach-Object { $_.Message })
+
+    $bad = @($tokens | Where-Object {
+        $_.Type -ne 'Comment' -and $_.Content -match '[^\x00-\x7F]'
+    })
+    Assert-Payload "$($ps1.Name) has ASCII-only code" ($bad.Count -eq 0) `
+        (($bad | ForEach-Object { "line $($_.StartLine)" }) -join ', ')
 }
 
 # No .env anywhere in the payload. This is the check that stops a build-machine
@@ -441,6 +655,76 @@ Assert-Payload "env.template still has __GENERATE__ placeholders" ($tpl -match '
 Assert-Payload "no NEXT_PUBLIC_PUSHER_* variable is defined in env.template" `
     ($tpl -notmatch '(?m)^\s*NEXT_PUBLIC_PUSHER\w*\s*=')
 
+# The update channel must ship OFF and SAFE.
+#
+# These two defaults are the difference between "an update channel" and "a
+# supply-chain hole shipped to every restaurant we supply". POS_UPDATE_AUTO_
+# INSTALL=true would let a box restart itself mid-service on a template nobody
+# reviewed; POS_UPDATE_ALLOW_UNSIGNED=true would let it run an installer whose
+# signature Windows could not verify, as Administrator. Both are legitimate
+# things for one operator to switch on for one site, and neither has any
+# business being the shipped default - so this asserts what leaves the building,
+# not what a site may later choose.
+Assert-Payload "env.template ships with auto-install OFF" `
+    ($tpl -notmatch '(?mi)^\s*POS_UPDATE_AUTO_INSTALL\s*=\s*true\s*$')
+Assert-Payload "env.template ships requiring a verified signature" `
+    ($tpl -notmatch '(?mi)^\s*POS_UPDATE_ALLOW_UNSIGNED\s*=\s*true\s*$')
+# A URL baked into the template would point every new install at whatever host
+# happened to be in the developer's working copy.
+Assert-Payload "env.template ships with no update URL set" `
+    ($tpl -match '(?m)^\s*POS_UPDATE_URL\s*=\s*$')
+
+# ── Licensing (Phase 11) ─────────────────────────────────────────────────────
+#
+# The licence verification key must be COMPILED INTO the shipped bundle.
+#
+# It is a public key, so there is nothing to protect about it - the assertion
+# exists because of what its ABSENCE would mean. lib/licensing/keys.ts holds it
+# as a constant precisely so it cannot be swapped in a .env on the customer's
+# own box; if a future refactor turned it into a setting, or a build dropped the
+# constant, every licence in the field would stop verifying and every paying
+# restaurant would fall into a 14-day grace period at once. Better to fail here.
+#
+# The key is searched for in the server bundle rather than in the source: what
+# matters is that it survived minification into the artifact that ships, not
+# that it exists in a file the customer never receives.
+$licenceKeyPrefix = 'MCowBQYDK2VwAyEA'
+$serverChunks = Join-Path $OutDir 'app\.next\server'
+$keyFound = $false
+if (Test-Path $serverChunks) {
+    $keyFound = [bool](Get-ChildItem $serverChunks -Recurse -File -Include '*.js' -ErrorAction SilentlyContinue |
+        Select-String -SimpleMatch -Pattern $licenceKeyPrefix -List -ErrorAction SilentlyContinue |
+        Select-Object -First 1)
+}
+Assert-Payload "the licence verification key is compiled into the app bundle" $keyFound `
+    "lib\licensing\keys.ts did not reach app\.next\server - licences would not verify on a client box"
+
+# No PRIVATE key material anywhere in the payload.
+#
+# The signing key lives outside this repository (see tools\licensing\keygen.mjs)
+# and nothing in the build should ever go looking for it. This is the assertion
+# that catches somebody dropping a .pem next to the tools "just for testing" and
+# shipping the ability to mint licences to every customer.
+$strayKeys = @(Get-ChildItem $OutDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Extension -in '.pem', '.pfx', '.key', '.p12' -and $_.FullName -notmatch '\\node_modules\\' })
+Assert-Payload "no private key material in the payload" ($strayKeys.Count -eq 0) `
+    (($strayKeys | ForEach-Object { $_.FullName }) -join ', ')
+
+# The licence itself must NOT be in the payload. license.dat belongs to one
+# machine and lives in ProgramData; one shipped in the installer would be handed
+# to every customer, and would fail its fingerprint check on all of them.
+$strayLicence = @(Get-ChildItem $OutDir -Recurse -File -Force -Filter 'license.dat' -ErrorAction SilentlyContinue)
+Assert-Payload "no licence file in the payload" ($strayLicence.Count -eq 0) `
+    (($strayLicence | ForEach-Object { $_.FullName }) -join ', ')
+
+# The vendor-side issuing tools must never reach a customer. They are harmless
+# without the private key, but shipping the issuer alongside the product tells
+# anybody who looks exactly how the format works and where the key would go.
+$strayTools = @(Get-ChildItem $OutDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -in 'issue.mjs', 'keygen.mjs' })
+Assert-Payload "no licence issuing tools in the payload" ($strayTools.Count -eq 0) `
+    (($strayTools | ForEach-Object { $_.FullName }) -join ', ')
+
 # The bundled runtime must actually run the native addons. bcrypt and sharp
 # ship N-API prebuilds which should be ABI-stable across Node majors - verify
 # that rather than trusting it, because a broken bcrypt means nobody can log in.
@@ -464,6 +748,55 @@ Assert-Payload "mongod.exe executes" ($mongodProbe.ExitCode -eq 0) $mongodProbe.
 
 $caddyProbe = Invoke-Native -FilePath (Join-Path $OutDir 'caddy\caddy.exe') -Arguments @('version')
 Assert-Payload "caddy.exe executes" ($caddyProbe.ExitCode -eq 0) $caddyProbe.StdErr
+
+# The build must not package its own output.
+#
+# Next's file tracer decides what each route needs and copies it into
+# .next/standalone. Its static evaluator resolves process.cwd(), so code that
+# builds a runtime path from it can make the tracer conclude the route might
+# read anything under the repo root - and copy the whole thing, installer\payload
+# and the previous installer\dist\*.exe included.
+#
+# That is not hypothetical. It happened when the update agent was added: the
+# payload went from 438 MB to 1,483 MB because it contained the PREVIOUS build's
+# payload and installer. Left unchecked, every release roughly doubles, and the
+# only symptom is a download that got bigger.
+#
+# next.config.ts excludes these directories. This asserts the result, because an
+# exclude list is only as good as the next person's memory to update it, and the
+# failure is silent.
+#
+# Note what this does NOT ban: app\installer\scripts\apply-update.ps1. The app
+# genuinely references that script by name, so Next traces a 12 KB copy of it
+# into the bundle. That copy is unused - services.ps1 runs the one under
+# scripts\ - but it is normal tracing of a real reference, not the build eating
+# its own output, and banning it would mean failing the build over 12 KB. The
+# directories named below are the ones that carried a gigabyte.
+# Matched on the PATH, not on a directory name, and node_modules is skipped.
+# "dist" is an ordinary npm package directory - @mongodb-js/saslprep ships one -
+# so banning the bare name fails the build on a legitimate dependency. What must
+# never appear is this project's own build output.
+$appRoot = Join-Path $OutDir 'app'
+$nested = @(
+    Get-ChildItem $appRoot -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\' } |
+    Where-Object {
+        $rel = $_.FullName.Substring($appRoot.Length)
+        $rel -match '\\installer\\(payload|dist)(\\|$)' -or $rel -match '\\\.(depcache|git)(\\|$)'
+    }
+)
+Assert-Payload "the app bundle does not contain the build's own output" ($nested.Count -eq 0) `
+    (($nested | ForEach-Object { $_.FullName.Replace($OutDir, '') } | Select-Object -First 3) -join ', ')
+
+# A blunt ceiling as the second net: the check above names the directories seen
+# so far, and this catches whatever nobody predicted next. The Next standalone
+# bundle measures about 44 MB; the runtimes (node, mongodb, caddy) are staged
+# separately and are not counted here. 250 MB leaves years of honest growth and
+# still catches the regression that prompted this, which reached 1,087 MB.
+$appMB = [math]::Round(((Get-ChildItem (Join-Path $OutDir 'app') -Recurse -File -Force |
+          Measure-Object -Property Length -Sum).Sum / 1MB), 1)
+Assert-Payload "the app bundle is a plausible size ($appMB MB)" ($appMB -lt 250) `
+    "expected well under 250 MB - something large was traced into it"
 
 # MAX_PATH. Windows still limits paths to 260 characters unless long paths are
 # explicitly enabled, and they are OFF by default on Windows 10/11. A client box
@@ -576,7 +909,24 @@ if (-not $appVersion) { Write-Err "package.json has no version field."; exit 1 }
 Write-Ok "version $appVersion (from package.json)"
 
 $iss = Join-Path $InstallerDir 'setup.iss'
-$isccResult = Invoke-Native -FilePath $IsccPath -Arguments @("/DAppVersion=$appVersion", '/Qp', $iss)
+$isccArgs = @("/DAppVersion=$appVersion", '/Qp')
+
+# Have Inno sign the uninstaller it generates. Both arguments are required
+# together: /Ssigntool defines the tool, /DSignUninstaller switches on the
+# matching directives in setup.iss. $f is Inno's placeholder for the file.
+if ($SignThumbprint) {
+    $signtoolPath = Get-SignToolPath
+    if (-not $signtoolPath) {
+        Write-Err "signtool unavailable - cannot sign the uninstaller."
+        exit 1
+    }
+    $isccArgs += '/DSignUninstaller'
+    $isccArgs += ('/Ssigntool=' + '"' + $signtoolPath + '" sign /sha1 ' + $SignThumbprint +
+                  ' /fd sha256 /tr ' + $TimestampUrl + ' /td sha256 /q $f')
+}
+$isccArgs += $iss
+
+$isccResult = Invoke-Native -FilePath $IsccPath -Arguments $isccArgs
 if ($isccResult.ExitCode -ne 0) {
     Write-Err "Inno Setup compilation failed (exit $($isccResult.ExitCode))."
     if ($isccResult.StdOut) { Write-Host $isccResult.StdOut -ForegroundColor DarkGray }
@@ -591,6 +941,14 @@ if (-not (Test-Path $setupExe)) {
 }
 $setupSize = (Get-Item $setupExe).Length
 
+# Sign the finished installer. The wrappers inside it were already signed during
+# staging; this covers the outer .exe that the customer actually downloads and
+# that SmartScreen judges.
+if (-not (Invoke-SignFiles -Files @($setupExe) -What 'installer')) {
+    Write-Err "Could not sign the installer - aborting."
+    exit 1
+}
+
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host "   INSTALLER READY" -ForegroundColor Green
@@ -600,7 +958,28 @@ Write-Host ("   file     : {0}" -f $setupExe) -ForegroundColor Cyan
 Write-Host ("   size     : {0:N1} MB (from a {1:N0} MB payload)" -f ($setupSize/1MB), ($size/1MB)) -ForegroundColor DarkGray
 Write-Host ("   version  : {0}" -f $appVersion) -ForegroundColor DarkGray
 Write-Host ""
-Write-Warn "NOT CODE-SIGNED. SmartScreen will warn on every download until it is."
-Write-Host "         Sign the installer AND the three service\XPPOS-*.exe wrappers" -ForegroundColor DarkGray
-Write-Host "         (WinSW ships unsigned) before distributing to clients." -ForegroundColor DarkGray
-Write-Host ""
+if ($SignThumbprint) {
+    # Report what Windows actually thinks, not what signtool claimed. A signature
+    # that does not verify here will not verify on a customer's machine either.
+    $sig = Get-AuthenticodeSignature -LiteralPath $setupExe
+    $stamped = if ($sig.TimeStamperCertificate) { 'timestamped' } else { 'NOT TIMESTAMPED' }
+    if ($sig.Status -eq 'Valid') {
+        Write-Host ("   signed   : {0} ({1})" -f $sig.SignerCertificate.Subject, $stamped) -ForegroundColor Green
+    } else {
+        Write-Warn "signature status is '$($sig.Status)', not 'Valid'."
+        Write-Host "         With a self-signed test certificate that is expected -" -ForegroundColor DarkGray
+        Write-Host "         Windows does not trust the root. With a purchased" -ForegroundColor DarkGray
+        Write-Host "         certificate it means something is wrong." -ForegroundColor DarkGray
+        Write-Host ("         signer: {0} ({1})" -f $sig.SignerCertificate.Subject, $stamped) -ForegroundColor DarkGray
+    }
+    if (-not $sig.TimeStamperCertificate) {
+        Write-Warn "NOT timestamped - every signature dies with the certificate."
+    }
+    Write-Host ""
+} else {
+    Write-Warn "NOT CODE-SIGNED. SmartScreen will warn on every download until it is."
+    Write-Host "         Sign with:  .\installer\build.ps1 -SignThumbprint <thumbprint>" -ForegroundColor DarkGray
+    Write-Host "         This signs the installer AND the three service\XPPOS-*.exe" -ForegroundColor DarkGray
+    Write-Host "         wrappers (WinSW ships unsigned)." -ForegroundColor DarkGray
+    Write-Host ""
+}

@@ -41,7 +41,7 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function PUT(request: NextRequest, ctx: RouteContext) {
-  const denied = await isAdminRequest({ requiredPerm: "manage_menu" });
+  const denied = await isAdminRequest({ requiredPerm: "manage_menu", license: "write" });
   if (denied) return denied;
 
   const { id } = await ctx.params;
@@ -127,7 +127,7 @@ export async function PUT(request: NextRequest, ctx: RouteContext) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function DELETE(_request: NextRequest, ctx: RouteContext) {
-  const denied = await isAdminRequest({ requiredPerm: "manage_menu" });
+  const denied = await isAdminRequest({ requiredPerm: "manage_menu", license: "write" });
   if (denied) return denied;
 
   const { id } = await ctx.params;

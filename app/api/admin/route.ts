@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 /* ===================== POST ===================== */
 export async function POST(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: "manage_staff" });
+  const authResult = await isAdminRequest({ requiredPerm: "manage_staff", license: "write" });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
 /* ===================== PUT ===================== */
 export async function PUT(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: "manage_staff" });
+  const authResult = await isAdminRequest({ requiredPerm: "manage_staff", license: "write" });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();
@@ -112,7 +112,7 @@ export async function PUT(req: NextRequest) {
 
 /* ===================== DELETE ===================== */
 export async function DELETE(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: "manage_staff" });
+  const authResult = await isAdminRequest({ requiredPerm: "manage_staff", license: "write" });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();

@@ -1,10 +1,19 @@
 # Phase 9 — Code signing
 
-**Status:** not started
-**Depends on:** nothing technical. Blocked only on **buying a certificate**,
-which has a lead time — start that before anything else.
-**Risk:** low to implement. High cost of *not* doing it.
-**Size:** small. A day of engineering once the certificate exists.
+**Status: ENGINEERING COMPLETE AND VERIFIED. Blocked only on buying a
+certificate.**
+
+Everything below is built, wired into `installer/build.ps1`, and proven end to
+end with a self-signed test certificate. The day a real certificate arrives,
+one command produces a fully signed release:
+
+```powershell
+.\installer\build.ps1 -SignThumbprint <thumbprint>
+```
+
+Nothing else needs writing. **Go buy the certificate.**
+
+**Risk:** low to implement (done). High cost of *not* doing it.
 
 Read `docs/handover/README.md` first for project state and ground rules.
 
@@ -71,51 +80,99 @@ downloading a trial does not see a warning; OV reputation-building means your
 first weeks of trial downloads — exactly the ones that matter — still get
 flagged.
 
-## Implementation
+## Implementation — DONE
 
-Add an optional signing step to `installer/build.ps1`:
-
-- New parameters: `-SignThumbprint <hash>` (cert from the machine/user store —
-  works with tokens and HSMs) and optionally `-TimestampUrl`.
-- **Sign the three wrappers during staging**, after they are copied into
-  `payload\service\` and *before* Inno packages them. Signing them afterwards is
-  impossible — they are compressed inside the installer.
-- **Sign the finished installer** after ISCC returns.
-- Skip cleanly and keep the existing warning when no thumbprint is supplied, so
-  a developer build still works with no certificate.
+### How to use it
 
 ```powershell
-signtool sign /sha1 <thumbprint> /fd sha256 /tr <timestamp-url> /td sha256 <file>
+# find your certificate
+Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select Thumbprint,Subject,NotAfter
+
+# build a signed release
+.\installer\build.ps1 -SignThumbprint 1A2B3C...
+
+# override the timestamp server if needed (defaults to DigiCert)
+.\installer\build.ps1 -SignThumbprint 1A2B3C... -TimestampUrl http://timestamp.sectigo.com
 ```
 
-**Timestamping is not optional.** Without `/tr`, every signature becomes invalid
-the day the certificate expires — including on installers already deployed to
-customers.
+Omit `-SignThumbprint` and the build works exactly as before, printing the
+NOT CODE-SIGNED warning. Developer builds need no certificate.
 
-`signtool.exe` ships with the Windows SDK. Follow the `deps.json` pattern if you
-want it fetched automatically; otherwise document it as a build prerequisite and
-fail with a clear message when missing.
+### What it signs, and when
 
-Inno Setup also supports `SignTool=` directives in `setup.iss`, which can sign
-the uninstaller too. Worth using — an unsigned `unins000.exe` sitting in Program
-Files is the kind of thing security software notices.
+| Artifact | Signed at | Why there |
+|---|---|---|
+| `service\XPPOS-MongoDB.exe` | **staging** | must be signed *before* Inno compresses them into the installer — afterwards is impossible |
+| `service\XPPOS-App.exe` | staging | " |
+| `service\XPPOS-Caddy.exe` | staging | " |
+| `unins000.exe` | ISCC compile | via Inno's `SignTool=` + `SignedUninstaller=yes` |
+| `XP-POS-Setup-<ver>.exe` | after ISCC | the file the customer downloads; what SmartScreen judges |
+
+All signatures use `/fd sha256` and are **RFC 3161 timestamped** (`/tr … /td
+sha256`).
+
+### Design notes
+
+- **Thumbprint, not `.pfx`.** Since June 2023 publicly-trusted code-signing keys
+  must live on a hardware token, HSM, or cloud signing service — none of which
+  give you a file. Reading the certificate from the Windows store is the only
+  form that works with all of them.
+- **The certificate is validated before the build starts**, not after ten
+  minutes of compilation. A missing thumbprint or an expired certificate fails
+  immediately, and a certificate expiring within 30 days prints a warning.
+- **A signing failure aborts the build.** Shipping a half-signed installer is
+  worse than shipping an unsigned one — the inconsistency looks like tampering.
+- **`signtool.exe` is auto-fetched**, pinned and sha256-verified in `deps.json`,
+  from the `Microsoft.Windows.SDK.BuildTools` NuGet package (a `.nupkg` is a
+  zip; only the 538 KB `signtool.exe` is used). No multi-gigabyte Windows SDK
+  install, nothing written to the system, and it downloads *only* when signing
+  is actually requested.
+- **Uninstaller signing is conditional** (`#ifdef SignUninstaller` in
+  `setup.iss`). ISCC fails if `SignTool=` names a tool that was not defined on
+  the command line, which would break every unsigned developer build.
+- The final report calls `Get-AuthenticodeSignature` on the result and prints
+  what **Windows** thinks, not what signtool claimed.
+
+### Verified with a self-signed test certificate
+
+| Check | Result |
+|---|---|
+| 3 wrappers signed during staging | yes |
+| installer signed after compile | yes |
+| all 4 timestamped | yes — DigiCert SHA256 RSA4096 Timestamp Responder |
+| signature validity | `UnknownError` (self-signed root untrusted) → **`Valid`** once the test root was trusted, proving the signatures themselves are correct |
+| build with no certificate | still succeeds, prints NOT CODE-SIGNED |
+| all 27 payload assertions | pass in both modes |
+
+The test certificate was deleted afterwards; the machine has no code-signing
+certificates.
+
+**With a purchased certificate these read `Valid` immediately** — Windows
+already trusts the CA root, which is the entire difference.
 
 ---
 
 ## Acceptance criteria
 
-- [ ] `npx tsc --noEmit` clean; `.\installer\build.ps1` green
-- [ ] Build works **without** a certificate (developer path unchanged, warning
+Done with a test certificate:
+
+- [x] `.\installer\build.ps1` green in both signed and unsigned modes
+- [x] Build works **without** a certificate (developer path unchanged, warning
       still printed)
-- [ ] With a thumbprint supplied, all four binaries report
-      `Get-AuthenticodeSignature` = `Valid`:
-      the installer and the three `XPPOS-*.exe` wrappers
-- [ ] Every signature is timestamped (`SignerCertificate` plus a valid
-      `TimeStamperCertificate`)
+- [x] With a thumbprint supplied, all four binaries are signed: the installer
+      and the three `XPPOS-*.exe` wrappers
+- [x] Every signature is timestamped (`TimeStamperCertificate` present)
+- [x] Signatures verify as `Valid` when the signing root is trusted
+
+Still to confirm once a **real certificate** is purchased:
+
+- [ ] All four binaries report `Get-AuthenticodeSignature` = `Valid` with no
+      manual trust step
 - [ ] Downloading the installer on a clean Windows box shows no SmartScreen
       warning (EV), or a reduced one (OV)
-- [ ] Installing still works end to end after signing — signed wrappers register
-      and start as services normally
+- [ ] Installing still works end to end — signed wrappers register and start as
+      services normally, and antivirus does not quarantine them
+- [ ] `unins000.exe` on the installed box is signed
 - [ ] The private key / token is **not** in the repo, and not in CI logs
 
 ## Watch out for

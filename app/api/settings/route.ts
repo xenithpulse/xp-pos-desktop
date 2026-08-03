@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest) {
 /* ===================== PUT ===================== */
 export async function PUT(req: NextRequest) {
   // Only users with manage_settings (super_admin will have it) can update
-  const authResult = await isAdminRequest({ requiredRole: 'super_admin' });
+  const authResult = await isAdminRequest({ requiredRole: 'super_admin', license: 'write' });
   if (authResult) return authResult;
 
   try {

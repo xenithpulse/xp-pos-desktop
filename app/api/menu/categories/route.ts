@@ -64,7 +64,7 @@ interface CreateCategoryPayload {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await isAdminRequest({ requiredPerm: 'manage_menu' });
+  const denied = await isAdminRequest({ requiredPerm: 'manage_menu', license: 'write' });
   if (denied) return denied;
 
   const conn = await mongooseConnect();

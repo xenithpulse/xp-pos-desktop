@@ -20,8 +20,20 @@ import ConnectionsManager from "./components/ConnectionsManager";
 import BackupManager from "./components/BackupManager";
 import SystemHealth from "./components/SystemHealth";
 import NetworkSettings from "./components/NetworkSettings";
+import UpdateManager from "./components/UpdateManager";
+import Diagnostics from "./components/Diagnostics";
+import LicenseManager from "./components/LicenseManager";
 
-type TabType = "overview" | "router" | "connections" | "backups" | "network" | "health";
+type TabType =
+  | "overview"
+  | "router"
+  | "connections"
+  | "backups"
+  | "network"
+  | "health"
+  | "updates"
+  | "licence"
+  | "diagnostics";
 
 type ViewMode = "simple" | "advanced";
 
@@ -185,6 +197,10 @@ export default function ServerManagementPage() {
           onRunBackup={runBackup}
           backupBusy={backupBusy}
           onOpenAdvanced={() => switchMode("advanced")}
+          onOpenLicence={() => {
+            setActiveTab("licence");
+            switchMode("advanced");
+          }}
         />
       ) : (
       <>
@@ -199,6 +215,9 @@ export default function ServerManagementPage() {
               { id: "backups" as const, label: "Backups" },
               { id: "network" as const, label: "Network Settings" },
               { id: "health" as const, label: "System Health" },
+              { id: "updates" as const, label: "Updates" },
+              { id: "licence" as const, label: "Licence" },
+              { id: "diagnostics" as const, label: "Diagnostics" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -219,7 +238,13 @@ export default function ServerManagementPage() {
       {/* Content */}
       <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
         {activeTab === "overview" && (
-          <OverviewTab config={config} onRefresh={fetchConfig} />
+          <OverviewTab
+            config={config}
+            onRefresh={fetchConfig}
+            onOpenDiagnostics={() => setActiveTab("diagnostics")}
+            onRunBackup={runBackup}
+            backupBusy={backupBusy}
+          />
         )}
         {activeTab === "router" && <RouterManagement config={config} onUpdate={fetchConfig} />}
         {activeTab === "connections" && (
@@ -232,6 +257,9 @@ export default function ServerManagementPage() {
           <NetworkSettings config={config} onUpdate={fetchConfig} />
         )}
         {activeTab === "health" && <SystemHealth config={config} onRefresh={fetchConfig} />}
+        {activeTab === "updates" && <UpdateManager />}
+        {activeTab === "licence" && <LicenseManager />}
+        {activeTab === "diagnostics" && <Diagnostics />}
       </div>
       </>
       )}
@@ -244,11 +272,13 @@ function SimpleView({
   onRunBackup,
   backupBusy,
   onOpenAdvanced,
+  onOpenLicence,
 }: {
   config: IServerConfig | null;
   onRunBackup: () => void;
   backupBusy: boolean;
   onOpenAdvanced: () => void;
+  onOpenLicence: () => void;
 }) {
   const healthy = config?.systemStatus === "healthy";
   const activeDevices =
@@ -267,6 +297,11 @@ function SimpleView({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
+      {/* Licence, ABOVE everything else when there is something to say. The
+          owner who needs this is the one whose trial is running out, and they
+          are not going to find it behind "Advanced settings". */}
+      <SimpleLicenceCard onOpen={onOpenLicence} />
+
       {/* Big status tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex items-center gap-4">
@@ -350,6 +385,74 @@ function SimpleView({
   );
 }
 
+/**
+ * Licence state in Simple mode.
+ *
+ * Renders NOTHING while the POS is quietly licensed - a working appliance
+ * should not have a licence widget on its front page. It appears only when
+ * there is something the owner has to act on: a trial running down, a grace
+ * period, or a POS that has gone read-only.
+ */
+function SimpleLicenceCard({ onOpen }: { onOpen: () => void }) {
+  const [status, setStatus] = useState<{
+    restricted: boolean;
+    warn: boolean;
+    headline: string;
+    detail: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/admin/server-config/license");
+        if (res.ok && !cancelled) setStatus(await res.json());
+      } catch {
+        // The licence panel in Advanced reports properly; a fetch failure here
+        // means showing nothing, which is the right amount of noise.
+      }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  if (!status || (!status.warn && !status.restricted)) return null;
+
+  const danger = status.restricted;
+  return (
+    <div
+      className={`rounded-xl border p-6 ${
+        danger ? "border-red-500 bg-red-900/20" : "border-yellow-600/60 bg-yellow-900/20"
+      }`}
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <AlertTriangle
+            size={24}
+            className={`mt-0.5 shrink-0 ${danger ? "text-red-400" : "text-yellow-400"}`}
+          />
+          <div>
+            <p className="text-lg font-bold">{status.headline}</p>
+            <p className="mt-1 text-sm text-neutral-300">{status.detail}</p>
+          </div>
+        </div>
+        <button
+          onClick={onOpen}
+          className={`w-full shrink-0 rounded-lg px-5 py-3 font-medium transition-colors sm:w-auto ${
+            danger ? "bg-red-600 hover:bg-red-700" : "bg-yellow-600 hover:bg-yellow-700"
+          }`}
+        >
+          Licence
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StatusCard({
   label,
   value,
@@ -379,9 +482,15 @@ function StatusCard({
 function OverviewTab({
   config,
   onRefresh,
+  onOpenDiagnostics,
+  onRunBackup,
+  backupBusy,
 }: {
   config: IServerConfig | null;
   onRefresh: () => void;
+  onOpenDiagnostics: () => void;
+  onRunBackup: () => void;
+  backupBusy: boolean;
 }) {
   return (
     <motion.div
@@ -418,11 +527,14 @@ function OverviewTab({
             Refresh Status
           </button>
           <button
-            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 sm:w-auto"
+            onClick={onRunBackup}
+            disabled={backupBusy}
+            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 disabled:opacity-50 sm:w-auto"
           >
-            Run Backup Now
+            {backupBusy ? "Backing up…" : "Run Backup Now"}
           </button>
           <button
+            onClick={onOpenDiagnostics}
             className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 sm:w-auto"
           >
             System Diagnostics

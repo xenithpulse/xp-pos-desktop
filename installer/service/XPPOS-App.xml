@@ -55,6 +55,18 @@
   <!-- Next's telemetry phones home; an offline appliance should not try. -->
   <env name="NEXT_TELEMETRY_DISABLED" value="1"/>
 
+  <!--
+    Where the program files are, for the update agent: it needs
+    scripts\apply-update.ps1, and that script needs services.ps1.
+
+    %BASE% is this file's directory, so this is the REAL install directory even
+    when the operator chose a different one in the installer wizard. The app
+    could not work this out for itself: deriving it from process.cwd() is what
+    made Next's file tracer copy the entire repository into the app bundle
+    (see lib/updates/paths.ts), so it is passed in rather than computed.
+  -->
+  <env name="POS_INSTALL_DIR" value="%BASE%\.."/>
+
   <startmode>Automatic</startmode>
   <delayedAutoStart/>
 

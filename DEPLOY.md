@@ -165,6 +165,42 @@ re-validates it, and restarts the services. **Do not hand-edit `caddy.env` or
 `Caddyfile`** — both are regenerated from `.env` on every run and your edits
 will be lost.
 
+Provisioning also **adds settings introduced by a newer release** that this
+site's `.env` does not have yet, at their defaults. Values already in the file
+are never touched — including ones deliberately left blank, since a blank value
+is still a key. Anything it adds goes in a dated block at the end of the file.
+
+### Software updates
+
+Off unless configured. With `POS_UPDATE_URL` blank — the default — the box makes
+no outbound requests at all, which is the right setting for a site with no
+internet.
+
+To turn it on, set `POS_UPDATE_URL` to the release manifest and re-run
+provisioning. The box then checks every few hours, downloads a new release,
+verifies its SHA-256 **and** its Authenticode signature, and shows it in
+**Server Management → Updates** for someone at the restaurant to install when it
+suits them. An update never starts while orders are open.
+
+`POS_UPDATE_AUTO_INSTALL=true` lets it install unattended, but only inside
+`POS_UPDATE_WINDOW` and only with no orders open. Leave it off unless a site has
+specifically asked for it — a POS that restarts itself mid-service is a bad
+afternoon for everyone.
+
+If an update is interrupted (a power cut is the realistic case) the box comes
+back on its previous version and says so on the Updates tab. Nothing is lost.
+
+Update logs are under `C:\ProgramData\XP POS\logs\update`.
+
+### Diagnosing a box over the phone
+
+**Server Management → Diagnostics** shows, without anyone running PowerShell on
+site: the version, the site ID, the three services and their start types, what
+is reachable from the network (only Caddy should be), the configured port, and
+the log files. Reading a log's contents needs an admin sign-in; everything else
+does not, because the dashboard has to work when the thing that is broken is the
+part you would sign in to.
+
 ### Inspecting the database
 
 ```powershell
@@ -287,6 +323,22 @@ Optional flags:
 .\installer\build.ps1 -StageOnly     # stage the payload, skip the installer
 .\installer\build.ps1 -UpdateHashes  # repin after deliberately changing a version
 ```
+
+### Signed release builds
+
+```powershell
+Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select Thumbprint,Subject,NotAfter
+.\installer\build.ps1 -SignThumbprint <thumbprint>
+```
+
+This Authenticode-signs the installer, the uninstaller, and the three
+`XPPOS-*.exe` service wrappers (WinSW ships unsigned), all SHA-256 and RFC 3161
+timestamped. `signtool.exe` is fetched automatically — no Windows SDK install.
+
+Without a certificate the build still succeeds and warns. **Release builds
+distributed to customers should always be signed**: an unsigned installer
+downloaded from the web triggers a SmartScreen warning, and unsigned executables
+registered as Windows services are what endpoint protection flags.
 
 See `NATIVE_MIGRATION_NOTES.md` for the architecture, the decisions behind it,
 and the traps found along the way.

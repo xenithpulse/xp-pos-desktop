@@ -44,9 +44,9 @@ Do them in numbered order. The numbering **is** the execution order.
 
 | Doc | Phase | Size | Status |
 |---|---|---|---|
-| [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | not started |
-| [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | not started |
-| [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | not started |
+| [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | **engineering DONE — awaiting certificate purchase** |
+| [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **update delivery + diagnostics DONE — awaiting a published manifest; scopes B and D deliberately not built** |
+| [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
 | [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, in-app naming | small | not started |
 
 **Why this order:**
@@ -61,8 +61,20 @@ Do them in numbered order. The numbering **is** the execution order.
   restaurant out mid-service. With an update channel already in place, a
   licensing bug is a remote fix instead of a site visit during dinner service.
   Phase 10 also establishes the machine identity and XenithPulse-side endpoint
-  that Phase 11 needs — build them once.
+  that Phase 11 needs — build them once. **Those now exist**: `lib/updates/`
+  `identity.ts` is the one siteId/machineId, and `provision.ps1` merges new
+  `.env` keys into an existing site's config, so Phase 11 can add settings that
+  actually reach boxes already in service. Reuse both rather than building a
+  second, parallel scheme. **Phase 11 did**: `lib/licensing/paths.ts` imports
+  the data root from `lib/updates/paths.ts` rather than deriving its own, and
+  the siteId is untouched.
 - **12 last** because it is the only phase that changes nothing functional.
+
+**One thing from Phase 11 is not a code task and has no deadline but the first
+sale:** the licence signing key exists only at
+`~/.xenithpulse/licence-signing-key.pem` on the machine that generated it.
+Losing it means no licence can ever be issued for any installation already in
+the field. Back it up offline before shipping a trial to anybody.
 
 Signing was originally written into the branding document. That was a filing
 error: it is a security and trust prerequisite, not decoration, and it now has
@@ -76,8 +88,12 @@ These are carried forward from the migration and still apply.
 
 1. **`npx tsc --noEmit` is the primary gate.** It must pass clean before you
    consider anything done.
-2. **`.\installer\build.ps1` must stay green.** It runs 27 assertions on the
-   payload; do not weaken one to make a build pass.
+2. **`.\installer\build.ps1` must stay green.** It runs 42 assertions on the
+   payload; do not weaken one to make a build pass. Two of them exist because
+   the update agent silently tripled the payload — Next's file tracer copied
+   `installer\payload` and `installer\dist` into the app bundle, so every build
+   packaged the one before it. See PHASE-10 for the four patterns that cause it;
+   if either assertion fires, that is what happened.
 3. **Never put mutable state under `C:\Program Files\XP POS`.** It is
    ACL-restricted and replaced wholesale on upgrade. Site data lives in
    `C:\ProgramData\XP POS`.

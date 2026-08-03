@@ -166,18 +166,120 @@ function ConvertFrom-EnvFile {
 # ── 1. ProgramData tree ──────────────────────────────────────────────────────
 Write-Step "Preparing the data directory"
 
-foreach ($sub in @('', 'mongo', 'uploads', 'logs', 'logs\mongodb', 'logs\app', 'logs\caddy', 'caddy\data', 'caddy\config')) {
+# 'updates' holds the update agent's state, any downloaded installer, and the
+# install marker that lets the next boot tell "an update was interrupted" apart
+# from "an update finished". It is under ProgramData for the usual reason: an
+# upgrade replaces Program Files wholesale, so a marker written there would be
+# deleted by the very upgrade it exists to survive.
+foreach ($sub in @('', 'mongo', 'uploads', 'updates', 'logs', 'logs\mongodb', 'logs\app', 'logs\caddy', 'logs\update', 'caddy\data', 'caddy\config')) {
     $dir = if ($sub) { Join-Path $DataRoot $sub } else { $DataRoot }
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 }
 Write-Ok "$DataRoot is ready"
 
+<#
+    Trial marker.
+
+    WHY IT IS HERE AND NOT IN setup.iss. Inno Setup would delete a registry key
+    it created when the product is uninstalled, and that is exactly what must
+    NOT happen: uninstall/reinstall would then hand out a fresh 30-day trial for
+    the price of two minutes. Writing it from provisioning means the uninstaller
+    never learns the key exists, so it survives.
+
+    It is one of THREE places the trial start is kept - the others are
+    license-state.json in the data root and the first admin account's createdAt
+    in the database. The app takes the OLDEST of the three, so this is a
+    backstop against someone deleting ProgramData, not the source of truth.
+
+    Written only when absent. On an upgrade of a box that has been in service
+    for a year, overwriting this with today's date would restart its trial.
+#>
+$TrialKey = 'HKLM:\SOFTWARE\XenithPulse\XP POS'
+try {
+    if (-not (Test-Path $TrialKey)) { New-Item -Path $TrialKey -Force | Out-Null }
+    $existing = (Get-ItemProperty -Path $TrialKey -Name 'TrialStartedAt' -ErrorAction SilentlyContinue).TrialStartedAt
+    if (-not $existing) {
+        $stamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        New-ItemProperty -Path $TrialKey -Name 'TrialStartedAt' -Value $stamp -PropertyType String -Force | Out-Null
+        Write-Ok "Trial marker written (first install)"
+    } else {
+        Write-Ok "Trial marker already present (left untouched)"
+    }
+} catch {
+    # A managed box can have HKLM locked down by group policy. Not fatal: the
+    # data root and the database still carry the trial start.
+    Write-Warn "Could not write the trial marker: $($_.Exception.Message)"
+}
+
+# The licence itself lives at $DataRoot\license.dat and is NEVER written or
+# removed here. Provisioning is re-run on every upgrade, and a paid licence
+# disappearing during an upgrade would be the worst bug this product could have.
+
 # ── 2. .env bootstrap ────────────────────────────────────────────────────────
 Write-Step "Checking configuration"
 
+<#
+    Add settings that exist in the template but not yet in this site's .env.
+
+    WHY THIS EXISTS. An existing .env is never overwritten - that rule protects
+    the per-site secret, the operator's port choice and any hand-tuning, and it
+    is not negotiable. But it also means a site that installed before a setting
+    existed NEVER receives it, no matter how many upgrades it takes. Every new
+    configurable in a future release would silently be absent on exactly the
+    boxes that have been in service longest.
+
+    So: existing keys are never touched, including ones deliberately left blank
+    (a blank value is still a key, so it is not "missing" and is not re-added).
+    Only genuinely absent keys are appended, with their template default, and a
+    __GENERATE__ default gets its own fresh secret exactly as on a first run.
+
+    Values are appended without their surrounding template comments. The comment
+    block belongs to the documentation; duplicating pages of it into a live
+    config on every upgrade would bury the settings an operator actually edits.
+#>
+function Add-MissingEnvKeys {
+    param([string]$EnvFile, [string]$TemplateFile)
+
+    $existing = ConvertFrom-EnvFile $EnvFile
+    $assignment = [regex]'(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$'
+
+    $additions = @()
+    foreach ($m in $assignment.Matches((Read-TextUtf8 $TemplateFile))) {
+        $key = $m.Groups[1].Value
+        if ($existing.ContainsKey($key)) { continue }
+        $value = $m.Groups[2].Value.Trim()
+        # Drop a trailing inline comment, the same rule ConvertFrom-EnvFile
+        # applies when reading, so the appended line means what the template
+        # meant rather than carrying prose into a live value.
+        if ($value -match '\s+#') { $value = ($value -split '\s+#')[0].Trim() }
+        if ($value -eq '__GENERATE__') { $value = New-RandomSecret }
+        $additions += "$key=$value"
+    }
+
+    if ($additions.Count -eq 0) { return 0 }
+
+    $text = (Read-TextUtf8 $EnvFile).TrimEnd()
+    $stamp = (Get-Date -Format 'yyyy-MM-dd')
+    $block = @(
+        '',
+        '',
+        "# ---- Added by an upgrade on $stamp ----",
+        '# New settings from this release, at their default values. See',
+        '# config\env.template in the install directory for what each one does.'
+    ) + $additions + ''
+    Write-TextNoBom -Path $EnvFile -Text ($text + "`n" + ($block -join "`n"))
+    return $additions.Count
+}
+
 $Template = Join-Path $ConfigDir 'env.template'
 if (Test-Path $EnvPath) {
-    Write-Ok ".env already exists (left untouched)"
+    Write-Ok ".env already exists (existing values left untouched)"
+    if (Test-Path $Template) {
+        $added = Add-MissingEnvKeys -EnvFile $EnvPath -TemplateFile $Template
+        if ($added -gt 0) {
+            Write-Ok "Added $added new setting(s) introduced since this site was installed"
+        }
+    }
 } else {
     if (-not (Test-Path $Template)) {
         Write-Err "Configuration template missing: $Template"
