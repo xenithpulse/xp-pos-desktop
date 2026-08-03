@@ -42,7 +42,7 @@ import {
   SignalZero,
   Maximize,
   Minimize,
-  Settings,
+  Settings, 
 } from 'lucide-react';
 import { usePOSStore, type NetworkQuality } from '@/stores/posStore';
 import { formatPrice } from '@/types/menu.types';

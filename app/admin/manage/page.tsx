@@ -153,9 +153,9 @@ export default function AdminManagePage() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div className="min-h-screen bg-black text-white flex flex-col md:flex-row">
       {/* Left Sidebar — Vercel-style vertical nav */}
-      <aside className="sticky top-0 h-screen w-56 shrink-0 border-r border-white/[0.08] bg-black flex flex-col z-40">
+      <aside className="sticky top-0 z-40 flex w-full shrink-0 flex-col border-b border-white/[0.08] bg-black md:h-screen md:w-56 md:border-r md:border-b-0">
         {/* Logo / Title */}
         <div className="flex items-center gap-3 px-5 h-14 border-b border-white/[0.08]">
           <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-white text-black">
@@ -165,7 +165,7 @@ export default function AdminManagePage() {
         </div>
 
         {/* Nav Items */}
-        <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-y-auto">
+        <nav className="flex gap-1 overflow-x-auto px-3 py-3 md:flex-1 md:flex-col md:space-y-0.5 md:overflow-y-auto">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -173,7 +173,7 @@ export default function AdminManagePage() {
                 key={tab.id}
                 onClick={() => switchTab(tab.id)}
                 className={`
-                  w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium
+                  flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium md:w-full
                   transition-colors
                   ${isActive
                     ? 'bg-white/[0.08] text-white'
@@ -190,7 +190,7 @@ export default function AdminManagePage() {
           {/* External link to the full Inventory Control Center */}
           <Link
             href="/admin/inventory"
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#888] hover:text-white hover:bg-white/[0.04] transition-colors mt-1"
+            className="mt-0 flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[#888] transition-colors hover:bg-white/[0.04] hover:text-white md:mt-1 md:w-full"
           >
             <span className="shrink-0 opacity-50"><Warehouse size={16} /></span>
             <span>Inventory</span>
@@ -200,7 +200,7 @@ export default function AdminManagePage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 min-w-0 py-8 px-8">
+      <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 md:px-8 md:py-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}

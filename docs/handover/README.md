@@ -40,15 +40,33 @@ compiler is pinned in `installer/deps.json` and fetched automatically.
 
 ## The work packages
 
-| Doc | Phase | Status |
-|---|---|---|
-| [`PHASE-9-BRANDING.md`](PHASE-9-BRANDING.md) | XenithPulse branding of installer, app and services | not started |
-| [`PHASE-10-LICENSING.md`](PHASE-10-LICENSING.md) | 30-day trial, license activation, enforcement | not started |
-| [`PHASE-11-REMOTE-UPDATE.md`](PHASE-11-REMOTE-UPDATE.md) | Updating and supporting a running client box | not started |
+Do them in numbered order. The numbering **is** the execution order.
 
-Suggested order: **9 → 10 → 11.** Branding is independent and low-risk. Licensing
-should land before any customer gets a build. Remote update is the largest and
-benefits from licensing already existing (it needs the same machine identity).
+| Doc | Phase | Size | Status |
+|---|---|---|---|
+| [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | not started |
+| [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | not started |
+| [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | not started |
+| [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, in-app naming | small | not started |
+
+**Why this order:**
+
+- **9 first** because it is a *prerequisite*, not a polish item. An updater that
+  runs an unsigned installer as Administrator over the internet is a
+  supply-chain hole (Phase 10), and an unsigned trial download triggers a
+  SmartScreen warning that costs you trial conversions (Phase 11). It is also
+  gated on *buying a certificate*, which has lead time — start that now even if
+  the engineering waits.
+- **10 before 11** because licensing is the one thing that can lock a paying
+  restaurant out mid-service. With an update channel already in place, a
+  licensing bug is a remote fix instead of a site visit during dinner service.
+  Phase 10 also establishes the machine identity and XenithPulse-side endpoint
+  that Phase 11 needs — build them once.
+- **12 last** because it is the only phase that changes nothing functional.
+
+Signing was originally written into the branding document. That was a filing
+error: it is a security and trust prerequisite, not decoration, and it now has
+its own phase at the front.
 
 ---
 

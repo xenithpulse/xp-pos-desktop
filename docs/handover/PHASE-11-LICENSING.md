@@ -1,10 +1,24 @@
-# Phase 10 — Trial period and licensing
+# Phase 11 — Trial period and licensing
 
 **Status:** not started
-**Depends on:** nothing hard, but do Phase 9 first — licensing needs a licence
-page in the wizard and the product should look finished before it asks for money.
+**Depends on:**
+- **Phase 9 (code signing)** — the trial is downloaded from your website by
+  strangers. An unsigned installer triggers a SmartScreen warning on every
+  download, which is a conversion problem, not an aesthetic one.
+- **Phase 10 (remote update)** — strongly recommended first. See below.
+
 **Risk:** HIGH. This is the only phase that can lock a paying customer out of
 their own restaurant. Read "Failure modes" before designing anything.
+
+> **Why remote update comes first.** A licensing bug does not present as a
+> cosmetic glitch — it presents as a restaurant unable to take orders. If you
+> can push a fix remotely that is a bad afternoon; if you cannot, it is a site
+> visit during service. Ship the escape hatch before the thing that might need
+> it.
+>
+> Phase 10 will already have established a machine identity and a
+> XenithPulse-side endpoint. **Reuse both.** A second, parallel identity scheme
+> is how two subsystems end up disagreeing about which machine they are on.
 
 Read `docs/handover/README.md` first for project state and ground rules.
 

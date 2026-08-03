@@ -86,7 +86,7 @@ export default function ServerManagementPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black text-white p-8">
+      <div className="min-h-screen bg-black p-4 text-white sm:p-6 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
             <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export default function ServerManagementPage() {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="border-b border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
           <Link
             href="/"
             className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-700 hover:text-white"
@@ -111,11 +111,11 @@ export default function ServerManagementPage() {
             <Home size={15} />
             Back to Home
           </Link>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <SettingsIcon size={32} className="text-blue-500" />
               <div>
-                <h1 className="text-3xl font-bold">Server Management</h1>
+                <h1 className="text-2xl font-bold sm:text-3xl">Server Management</h1>
                 <p className="text-neutral-400 text-sm">
                   Manage WiFi, connections, backups, and system settings
                 </p>
@@ -147,7 +147,7 @@ export default function ServerManagementPage() {
 
           {/* Quick Status (advanced only — Simple mode has its own layout) */}
           {mode === "advanced" && (
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <StatusCard
               label="System Status"
               value={config?.systemStatus || "unknown"}
@@ -190,7 +190,7 @@ export default function ServerManagementPage() {
       <>
       {/* Tab Navigation */}
       <div className="border-b border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex gap-1 overflow-x-auto">
             {[
               { id: "overview" as const, label: "Overview" },
@@ -217,7 +217,7 @@ export default function ServerManagementPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
         {activeTab === "overview" && (
           <OverviewTab config={config} onRefresh={fetchConfig} />
         )}
@@ -266,7 +266,7 @@ function SimpleView({
       : "text-neutral-400";
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
       {/* Big status tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex items-center gap-4">
@@ -302,7 +302,7 @@ function SimpleView({
 
       {/* Backup panel */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold">Backup</h2>
             <p className="text-neutral-400 text-sm mt-1">
@@ -319,7 +319,7 @@ function SimpleView({
           <button
             onClick={onRunBackup}
             disabled={backupBusy}
-            className="px-5 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors disabled:opacity-50"
+            className="w-full rounded-lg bg-green-600 px-5 py-3 font-medium transition-colors hover:bg-green-700 disabled:opacity-50 sm:w-auto"
           >
             {backupBusy ? "Backing up…" : "Back Up Now"}
           </button>
@@ -391,7 +391,7 @@ function OverviewTab({
     >
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
         <h2 className="text-xl font-bold mb-4">System Overview</h2>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
           <InfoItem
             label="Server Address (auto-detected)"
             value={
@@ -410,20 +410,20 @@ function OverviewTab({
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
         <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             onClick={onRefresh}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium transition-colors hover:bg-blue-700 sm:w-auto"
           >
             Refresh Status
           </button>
           <button
-            className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg font-medium transition-colors"
+            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 sm:w-auto"
           >
             Run Backup Now
           </button>
           <button
-            className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg font-medium transition-colors"
+            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 sm:w-auto"
           >
             System Diagnostics
           </button>
@@ -446,9 +446,9 @@ function LoadingSkeleton() {
   return (
     <div className="min-h-screen bg-black">
       <div className="border-b border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
           <div className="h-8 w-64 bg-neutral-800 rounded animate-pulse mb-6" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-neutral-900 rounded-lg p-4 h-20 animate-pulse" />
             ))}

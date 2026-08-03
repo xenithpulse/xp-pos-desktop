@@ -1,8 +1,15 @@
-# Phase 9 — XenithPulse branding
+# Phase 12 — XenithPulse branding
 
 **Status:** not started
-**Depends on:** nothing. Can be done independently and first.
+**Depends on:** nothing technical. Deliberately scheduled last: it is the only
+remaining phase that changes nothing functional.
 **Risk:** low. Almost entirely additive; nothing here changes behaviour.
+
+> **Code signing is NOT in this document.** It was originally filed here, which
+> was wrong — it is a security and trust prerequisite for remote update and for
+> the trial download funnel, not a cosmetic concern. It has its own document,
+> `PHASE-9-CODE-SIGNING.md`, and should already be done by the time you read
+> this. If it is not, do that first.
 
 Read `docs/handover/README.md` first for project state and ground rules.
 
@@ -86,30 +93,11 @@ Select-String -Path app,features,components -Include *.tsx -Pattern 'XP POS|Xeni
 configuration and undo what makes one installer shippable to every site.
 Hardcode it or read it server-side.
 
-### 5. Code signing — the biggest trust gap
+### 5. Signed installer — see Phase 9
 
-**Nothing is signed.** SmartScreen warns on every download, which for a paid
-commercial product undermines the branding work above more than a missing icon
-does.
-
-Two things need signing, not one:
-
-1. `installer\dist\XP-POS-Setup-<version>.exe`
-2. the three `service\XPPOS-*.exe` WinSW wrappers — **WinSW's own releases are
-   unsigned** (verified: `Get-AuthenticodeSignature` reports `NotSigned`)
-
-Buy an OV or EV code-signing certificate. EV gets SmartScreen reputation
-immediately; OV builds it over time and downloads will be flagged until then.
-
-**Work:** add an optional signing step to `installer/build.ps1` — a
-`-SignCert`/`-SignPassword` (or better, a cert thumbprint from the machine
-store) that runs `signtool sign /fd sha256 /tr <timestamp-url> /td sha256`.
-Sign the wrappers **during staging**, before Inno packages them, then sign the
-finished installer. Timestamping is not optional: without it every signature
-expires with the certificate.
-
-Keep the existing "NOT CODE-SIGNED" warning that `build.ps1` prints when no cert
-is supplied.
+Handled separately in `PHASE-9-CODE-SIGNING.md`. A polished wizard behind a
+SmartScreen warning undoes most of the work in this document, so confirm signing
+landed before calling branding done.
 
 ---
 
@@ -121,10 +109,7 @@ is supplied.
 - [ ] Wizard shows XenithPulse imagery and wording
 - [ ] Add/Remove Programs shows the XP POS icon and XenithPulse as publisher
 - [ ] Start-menu shortcuts show the product icon
-- [ ] With a certificate configured: installer and all three wrappers report
-      `Get-AuthenticodeSignature` = `Valid`
-- [ ] Installing on a clean box shows no SmartScreen warning (EV cert), or a
-      reduced one (OV)
+- [ ] Signing (Phase 9) confirmed still in place after any `setup.iss` changes
 
 ## Watch out for
 

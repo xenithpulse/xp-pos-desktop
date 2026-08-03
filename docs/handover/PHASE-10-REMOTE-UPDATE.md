@@ -1,12 +1,22 @@
-# Phase 11 — Updating and supporting a running client box
+# Phase 10 — Updating and supporting a running client box
 
 **Status:** not started
-**Depends on:** Phase 10 is helpful — licensing establishes a machine identity
-and a XenithPulse-side service, both of which this phase also needs. Doing 10
-first avoids building that twice.
+**Depends on:** **Phase 9 (code signing) must be done first.** An updater that
+downloads and runs an installer as Administrator over the internet, with no way
+to verify it came from XenithPulse, is a supply-chain path into every restaurant
+you supply.
 **Risk:** HIGH. This phase deliberately creates a path for XenithPulse to change
 software on a customer's machine. Done carelessly it is both an outage risk and
 a security hole.
+
+> **Why this comes before licensing.** Licensing (Phase 11) is the one phase
+> that can lock a paying restaurant out mid-service. Having a working update
+> channel first turns a licensing bug from "site visit during dinner service"
+> into "push a fix". Build the escape hatch before the risky thing.
+>
+> Side effect: this phase must establish a machine identity and a
+> XenithPulse-side endpoint. Phase 11 needs both — design them to be reused
+> rather than building a second, parallel identity scheme.
 
 Read `docs/handover/README.md` first for project state and ground rules.
 
@@ -158,9 +168,9 @@ Scenario 5 is the one people skip and the one that destroys trust.
 
 ## Watch out for
 
-- The installer is **not currently code-signed** (Phase 9). An auto-update that
-  runs an unsigned installer as Administrator, over the internet, is exactly the
-  supply-chain shape attackers look for. Sign first.
+- **Confirm Phase 9 signing actually landed** before enabling any auto-install
+  path. Verify on a client box, not just in the build output:
+  `Get-AuthenticodeSignature "C:\Program Files\XP POS\service\XPPOS-App.exe"`.
 - `installer/setup.iss` `AppId` must never change, or an "upgrade" installs
   alongside the old copy instead of replacing it.
 - The installed port varies per site (provisioning moves off a busy 8080 and

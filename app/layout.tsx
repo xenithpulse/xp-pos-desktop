@@ -162,12 +162,12 @@ function SessionTimeoutToast(): JSX.Element | null {
     <div
       aria-live="polite"
       role="status"
-      className="fixed top-4 right-4 z-9999 max-w-2xl w-full transition-opacity duration-300 ease-in-out"
+      className="fixed top-4 left-4 right-4 z-9999 w-auto max-w-2xl sm:left-auto sm:w-full transition-opacity duration-300 ease-in-out"
     >
       <div
         className={`pointer-events-auto rounded-xl border-l-4 p-4 shadow-lg backdrop-blur-md ${colorClass} transform hover:scale-[1.01] transition-transform duration-200`}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-3 sm:items-center sm:gap-4">
           <ClockIcon />
           <div className="flex-1">
             <p className="font-semibold">{message}</p>
@@ -180,7 +180,7 @@ function SessionTimeoutToast(): JSX.Element | null {
           </div>
           <button
             onClick={() => void signOut({ callbackUrl: "/login" })}
-            className="rounded-md border-2 px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+            className="shrink-0 rounded-md border-2 px-3 py-2 text-sm font-medium transition-colors duration-200 hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-opacity-50 sm:px-4"
             aria-label="Sign out now"
           >
             Sign out
