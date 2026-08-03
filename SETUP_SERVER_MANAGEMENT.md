@@ -15,16 +15,21 @@ node scripts/migrations/_runner.mjs migrate
 # "[0002] ServerConfig initialized with defaults"
 ```
 
-### 2. Rebuild and Restart the App
+### 2. Restart the App Service
 
-```bash
-docker compose up -d --build app
+```powershell
+& "C:\Program Files\XP POS\scripts\services.ps1" -Action Restart -Service XPPOS-App
 ```
 
-Monitor the build:
-```bash
-docker compose logs -f app
+Monitor it:
+```powershell
+Get-Content "C:\ProgramData\XP POS\logs\app\XPPOS-App.out.log" -Tail 50 -Wait
 ```
+
+> New application code arrives via the installer, not by building on the box.
+> Build a new payload on the developer machine (`installer\build.ps1 -Package`)
+> and run the resulting installer over the top; it stops the services, replaces
+> the program files, and restarts them.
 
 ### 3. Update Navigation (Optional but Recommended)
 
@@ -243,7 +248,7 @@ Leave empty to allow all LAN access
 #### System Recommendations
 
 Dashboard provides best practices:
-- ✓ Keep OS/Docker updated
+- ✓ Keep Windows updated
 - ✓ Enable HTTPS for production
 - ✓ Maintain off-box backups
 - ✓ Monitor disk usage
@@ -402,17 +407,17 @@ export async function up(conn) {
 
 **Error: 404**
 - Migration not run yet
-- App not rebuilt after adding new code
-- Try: `docker compose up -d --build app`
+- Running an installer build that predates this feature
+- Try: `services.ps1 -Action Restart -Service XPPOS-App`
 
 ### Changes Not Persisting
 
 **Symptom: Settings revert after refresh**
-- Check MongoDB connection: `docker compose logs mongo`
-- Verify `server_config` collection exists: 
-  ```bash
-  docker compose exec mongo mongosh --quiet \
-    --eval "db.server_config.findOne()"
+- Check MongoDB: `Get-Content "C:\ProgramData\XP POS\logs\mongodb\XPPOS-MongoDB.out.log" -Tail 50`
+- Verify `server_config` collection exists:
+  ```powershell
+  & "C:\Program Files\XP POS\mongodb\bin\mongosh.exe" `
+    "mongodb://127.0.0.1:27017/POS_PROD" --quiet --eval "db.server_config.findOne()"
   ```
 
 ### Router Whitelist Not Working
@@ -425,29 +430,35 @@ export async function up(conn) {
   
   To actually enforce router-level MAC filtering:
   1. Configure in your WiFi router's admin panel
-  2. Or add network filtering on the appliance (iptables on Linux)
+  2. Or restrict POS_ALLOWED_CIDRS so the proxy refuses unknown ranges
 
 ### Backup Paths Not Working
 
 **Error: "Path not found"**
-- Verify path exists: `docker compose exec app ls -la /path`
-- Check permissions: `docker compose exec app stat /path`
-- For external drives: ensure mounted and path is correct
+- Verify path exists: `Test-Path "<path>"`
+- Check permissions: `Get-Acl "<path>" | Format-List`
+- For external drives: ensure the drive letter is correct and the volume is attached
+- For UNC shares: the services run as LocalSystem, which has no network
+  credentials by default. A mapped drive belonging to a logged-in user is NOT
+  visible to a service - use a full `\\server\share` path and grant the machine
+  account access.
 
 **Backups succeeding but no files:**
-- Check disk space: `docker compose exec backup df -h`
-- Verify backup process: `docker compose logs backup`
+- Check disk space: `Get-PSDrive -PSProvider FileSystem`
+- Backups are owned by the XP Thermal Service, which runs
+  `mongodump.exe` directly - check that service's own log
 
 ### High Memory Usage
 
 **Symptom: "Memory" warning in health check**
 - Check active sessions: usually 30-50MB per connection
-- Increase Docker memory limit:
-  ```yaml
-  # docker-compose.yml
-  services:
-    app:
-      mem_limit: 2g  # Increase from default
+- Inspect the actual processes:
+  ```powershell
+  Get-Process node,mongod,caddy | Select-Object Name,Id,@{n='MB';e={[int]($_.WS/1MB)}}
+  ```
+- MongoDB sizes its WiredTiger cache at 50% of RAM minus 1 GB by default. To
+  cap it, set `storage.wiredTiger.engineConfig.cacheSizeGB` in
+  `C:\ProgramData\XP POS\mongod.cfg` and restart XPPOS-MongoDB.
   ```
 
 ---
@@ -513,7 +524,11 @@ A: Yes. Everything still works via API and direct MongoDB queries. Dashboard is 
 A: Recommended: Weekly. Or set email alerts (future feature).
 
 **Q: Can I export the configuration?**
-A: Yes: `docker compose exec mongo mongodump -c server_config`
+A: Yes:
+```powershell
+& "C:\Program Files\XP POS\mongodb\bin\mongodump.exe" `
+  --host 127.0.0.1 --port 27017 --db POS_PROD -c server_config --out .
+```
 
 **Q: What happens if I delete the ServerConfig document?**
 A: App will create a new one with defaults on next access. No data loss.

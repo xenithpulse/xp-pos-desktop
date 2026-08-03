@@ -1,8 +1,9 @@
 // app/api/upload/route.ts
 //
 // POST /api/upload — accept image file(s) and store them on the server's local
-// disk (a Docker volume in production). Returns servable URLs of the form
-// `/api/uploads/<filename>` which are streamed back by the sibling GET route.
+// disk (UPLOAD_DIR, under the appliance data root in production). Returns
+// servable URLs of the form `/api/uploads/<filename>` which are streamed back
+// by the sibling GET route.
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";

@@ -1,0 +1,296 @@
+; installer/setup.iss
+; Inno Setup script for the XP POS appliance.
+;
+; Produces ONE .exe that a client runs to get a working POS: no Docker, no
+; Node, no MongoDB, no prerequisites of any kind. Compile with:
+;
+;     installer\build.ps1                 (produces installer\payload)
+;     ISCC.exe installer\setup.iss
+;
+; The three behaviours that matter, in order of how badly they go wrong:
+;
+;   UPGRADE   Services hold their binaries open. They MUST be stopped before
+;             the file copy or Windows silently fails to replace node.exe and
+;             the site runs a half-updated install. And C:\ProgramData\XP POS
+;             is NEVER touched - it holds the database, the uploads and the
+;             per-site secret.
+;
+;   UNINSTALL Removing the services is not enough; the data must survive unless
+;             the operator explicitly asks otherwise. The prompt defaults to
+;             KEEPING it.
+;
+;   HARDWARE  MongoDB 5.0+ needs AVX. On a Celeron/Pentium N-series it dies with
+;             "Illegal instruction" - AFTER a successful-looking install. We
+;             refuse to install instead.
+
+#define AppName        "XP POS"
+#define AppPublisher   "XenithPulse"
+; Overridable so the version cannot drift from package.json:
+;     ISCC.exe /DAppVersion=1.2.0 installer\setup.iss
+#ifndef AppVersion
+  #define AppVersion   "1.0.0"
+#endif
+; AppId must NEVER change across releases - it is how Windows recognises an
+; existing install as the same product and turns this into an upgrade rather
+; than a second parallel installation.
+#define AppId          "{{8F3A1C42-9D6B-4E17-A5C8-2B7E4F9D1A03}"
+#define DataRoot       "{commonappdata}\XP POS"
+#define PayloadDir     "payload"
+
+[Setup]
+AppId={#AppId}
+AppName={#AppName}
+AppVersion={#AppVersion}
+AppPublisher={#AppPublisher}
+DefaultDirName={autopf}\XP POS
+DefaultGroupName={#AppName}
+DisableProgramGroupPage=yes
+OutputDir=dist
+OutputBaseFilename=XP-POS-Setup-{#AppVersion}
+Compression=lzma2/max
+SolidCompression=yes
+WizardStyle=modern
+; Registering Windows services and writing to Program Files both need this.
+; PrivilegesRequiredOverridesAllowed is deliberately left unset: its only valid
+; values are "commandline" and "dialog", both of which would let someone launch
+; a non-elevated install that cannot register services. Empty means no override
+; is possible.
+PrivilegesRequired=admin
+; 64-bit only. Every bundled runtime (node, mongod, caddy) is x64.
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; Windows 10 or later. Windows 7 is explicitly out of scope: Next 16 requires
+; Node 20, which does not run there.
+MinVersion=10.0
+UninstallDisplayName={#AppName}
+; No UninstallDisplayIcon: there is no .ico in the payload, and pointing this at
+; one of the bundled runtimes would show Node's or Caddy's icon in Add/Remove
+; Programs, which is worse than the Windows default. Add a real branded
+; XP-POS.ico to the payload and set it here when one exists.
+AllowNoIcons=yes
+CloseApplications=no
+; A restart is never needed - services are stopped and started by this script.
+RestartIfNeededByRun=no
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Files]
+; The entire staged payload. build.ps1 has already asserted that this tree
+; contains no .env, that the bundled node can execute bcrypt, and that mongod
+; and caddy run.
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\XP POS Service Status"; Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -NoExit -File ""{app}\scripts\services.ps1"" -Action Status -InstallDir ""{app}"""; \
+    Comment: "Show whether the POS services are running"
+Name: "{group}\XP POS Configuration Folder"; Filename: "{#DataRoot}"
+Name: "{group}\XP POS Logs"; Filename: "{#DataRoot}\logs"
+
+[Run]
+; ── 1. VC++ runtime ────────────────────────────────────────────────────────
+; mongod.exe imports msvcp140.dll and vcruntime140.dll. They are NOT guaranteed
+; on a clean Windows 10, which is precisely why MongoDB ships this redist
+; inside its own archive. Chained silently; it is a no-op when already present.
+; Failure is not fatal here - the AVX/redist check in Code below reports the
+; real problem if mongod still cannot start.
+Filename: "{app}\redist\vc_redist.x64.exe"; \
+    Parameters: "/install /quiet /norestart"; \
+    StatusMsg: "Installing the Microsoft Visual C++ runtime..."; \
+    Flags: waituntilterminated; Check: NeedsVCRedist
+
+; ── 2. Provision ───────────────────────────────────────────────────────────
+; Configuration, replica set, services, firewall. See installer/scripts.
+;
+; -ExecutionPolicy Bypass is load-bearing: a client box may have a restricted
+; execution policy (group policy on a managed machine, or just the default
+; Restricted on Windows Server), and without this the script silently refuses
+; to run and the install "succeeds" with nothing configured.
+Filename: "powershell.exe"; \
+    Parameters: "-NoProfile -ExecutionPolicy Bypass -NonInteractive -File ""{app}\scripts\provision.ps1"" -InstallDir ""{app}"""; \
+    StatusMsg: "Configuring the POS (database, services, firewall)..."; \
+    Flags: waituntilterminated runhidden
+
+[UninstallDelete]
+; Generated at provisioning time, not shipped, so Inno does not know about them.
+; These live under ProgramData but are NOT user data - they are regenerated on
+; every install and must not survive an uninstall.
+Type: files; Name: "{#DataRoot}\caddy.env"
+Type: files; Name: "{#DataRoot}\Caddyfile"
+
+[Code]
+const
+  { winnt.h. Verified on a real CPU during development: returns True for AVX on
+    an AVX-capable part, False for AVX-512 on Comet Lake, and False for a bogus
+    feature id - so it genuinely discriminates rather than always answering yes. }
+  PF_AVX_INSTRUCTIONS_AVAILABLE = 39;
+
+function IsProcessorFeaturePresent(Feature: DWORD): BOOL;
+  external 'IsProcessorFeaturePresent@kernel32.dll stdcall';
+
+function GetFileVersionSafe(const FileName: string): string;
+var
+  V: string;
+begin
+  Result := '';
+  if FileExists(FileName) then
+    if GetVersionNumbersString(FileName, V) then
+      Result := V;
+end;
+
+{ True when the VC++ runtime is missing, so the redist only runs when needed. }
+function NeedsVCRedist: Boolean;
+begin
+  Result := (GetFileVersionSafe(ExpandConstant('{sys}\vcruntime140.dll')) = '') or
+            (GetFileVersionSafe(ExpandConstant('{sys}\msvcp140.dll')) = '');
+end;
+
+{ ── Pre-install gate ───────────────────────────────────────────────────────
+  Refuse hardware that cannot run the database. Letting the install "succeed"
+  on a non-AVX box is the worst outcome available: everything looks fine, the
+  technician leaves, and mongod dies with "Illegal instruction" the first time
+  the restaurant takes an order. }
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+
+  if not IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) then
+  begin
+    MsgBox(
+      'This computer''s processor does not support AVX.' + #13#10#13#10 +
+      'MongoDB 5.0 and later require AVX. If this were installed, the database ' +
+      'would fail to start with an "Illegal instruction" error and the POS ' +
+      'would not work.' + #13#10#13#10 +
+      'This affects low-power Celeron and Pentium N-series chips ' +
+      '(for example N3350, N4000, N4020, N5030).' + #13#10#13#10 +
+      'Options:' + #13#10 +
+      '  - Install on a machine with a newer processor, or' + #13#10 +
+      '  - Contact XenithPulse for a build that uses MongoDB 4.4.' + #13#10#13#10 +
+      'Setup will now exit.',
+      mbCriticalError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+end;
+
+{ ── Upgrade: stop the services before replacing their binaries ─────────────
+  A running service holds node.exe, mongod.exe and caddy.exe open. Windows will
+  not replace an open file, and Inno's ignoreversion copy would leave the site
+  on a mixture of old and new binaries with no error shown. Stopping first is
+  what makes an in-place upgrade safe.
+
+  PrepareToInstall runs after the wizard and before any file is written, which
+  is exactly the right moment. Returning a non-empty string aborts with that
+  message. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  ScriptPath: string;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  ScriptPath := ExpandConstant('{app}\scripts\services.ps1');
+  if not FileExists(ScriptPath) then
+    Exit;  { fresh install - nothing to stop }
+
+  WizardForm.StatusLabel.Caption := 'Stopping the existing POS services...';
+
+  if not Exec('powershell.exe',
+       '-NoProfile -ExecutionPolicy Bypass -NonInteractive -File "' + ScriptPath +
+       '" -Action Stop -InstallDir "' + ExpandConstant('{app}') + '"',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := 'Could not run the service control script to stop the existing ' +
+              'installation. Close any open POS windows and try again.';
+    Exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    Result := 'The existing POS services could not be stopped (exit code ' +
+              IntToStr(ResultCode) + ').' + #13#10#13#10 +
+              'Upgrading now would leave a mix of old and new program files. ' +
+              'Stop the XPPOS-Caddy, XPPOS-App and XPPOS-MongoDB services in ' +
+              'services.msc, then run this installer again.';
+    Exit;
+  end;
+
+  { Windows reports a service as Stopped slightly before the process has fully
+    exited and released its file handles. A short settle avoids a sharing
+    violation on the very first file. }
+  Sleep(3000);
+end;
+
+{ ── Uninstall ─────────────────────────────────────────────────────────────
+  Services must be unregistered while their wrapper executables still exist, so
+  this runs before Inno deletes anything. }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  ScriptPath: string;
+  DataDir: string;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    ScriptPath := ExpandConstant('{app}\scripts\services.ps1');
+    if FileExists(ScriptPath) then
+      Exec('powershell.exe',
+        '-NoProfile -ExecutionPolicy Bypass -NonInteractive -File "' + ScriptPath +
+        '" -Action Uninstall -InstallDir "' + ExpandConstant('{app}') + '"',
+        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(2000);
+
+    { Remove the firewall rules this install created. Leaving an open inbound
+      port behind after an uninstall would be sloppy at best. }
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -NonInteractive -Command ' +
+      '"Get-NetFirewallRule -DisplayName ''XP POS (TCP *'' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+
+  { ── The destructive prompt ─────────────────────────────────────────────
+    Everything irreplaceable lives in ProgramData: the database, the uploaded
+    menu images, and the per-site NEXTAUTH_SECRET. Default is KEEP. The wording
+    names what is actually at stake rather than saying "user data", because the
+    person clicking this is often a technician who did not set the site up. }
+  if CurUninstallStep = usPostUninstall then
+  begin
+    DataDir := ExpandConstant('{#DataRoot}');
+    if not DirExists(DataDir) then
+      Exit;
+
+    if MsgBox(
+         'Delete the POS database and all business data?' + #13#10#13#10 +
+         'This would permanently remove:' + #13#10 +
+         '  - every order, table, menu item and daily sheet' + #13#10 +
+         '  - all uploaded menu images' + #13#10 +
+         '  - this site''s configuration and login secret' + #13#10#13#10 +
+         'Location: ' + DataDir + #13#10#13#10 +
+         'Choose No to keep everything. Reinstalling XP POS later will pick the ' +
+         'data back up exactly where it left off.' + #13#10#13#10 +
+         'This cannot be undone. Delete it?',
+         mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    begin
+      { Ask twice. The first prompt is easy to click through on autopilot; this
+        one requires reading. }
+      if MsgBox(
+           'Final confirmation.' + #13#10#13#10 +
+           'The entire POS database at' + #13#10 + DataDir + #13#10 +
+           'will be deleted permanently. There is no backup unless you made one.' + #13#10#13#10 +
+           'Are you certain?',
+           mbCriticalError, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      begin
+        DelTree(DataDir, True, True, True);
+      end;
+    end
+    else
+    begin
+      MsgBox(
+        'The POS data has been kept at:' + #13#10#13#10 + DataDir + #13#10#13#10 +
+        'Reinstalling XP POS will resume using it automatically.',
+        mbInformation, MB_OK);
+    end;
+  end;
+end;

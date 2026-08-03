@@ -38,6 +38,15 @@
     technician cannot just download a shell when a site has a data problem at
     9pm on a Saturday. Drop it if installer size matters more than that.
 
+.PARAMETER Package
+    After staging, compile setup.iss into a single installer .exe. The version
+    is taken from package.json and passed to ISCC, so the installer version can
+    never drift from the application version.
+
+.PARAMETER IsccPath
+    Path to Inno Setup's ISCC.exe. Searched in the usual install locations when
+    not given.
+
 .PARAMETER OutDir
     Payload staging directory. Default: installer\payload
 
@@ -54,6 +63,8 @@ param(
     [switch]$UpdateHashes,
     [switch]$SkipBuild,
     [switch]$NoMongosh,
+    [switch]$Package,
+    [string]$IsccPath,
     [string]$OutDir
 )
 
@@ -159,23 +170,32 @@ foreach ($name in @('node', 'mongodb', 'mongoTools', 'mongosh', 'caddy', 'winsw'
     if ($UpdateHashes) { $newHashes[$name] = $deps.$name.sha256 }
 }
 
-if ($UpdateHashes) {
-    # Surgical text edit, NOT ConvertTo-Json.
-    #
-    # deps.json is mostly prose: every dependency carries a "//" block
-    # explaining why that version, what gets extracted, and which risks attach
-    # to it. Round-tripping through ConvertTo-Json reflows the whole file and
-    # escapes every apostrophe and angle bracket into ' / <, which
-    # leaves the documentation technically valid and practically unreadable.
-    # So rewrite only the sha256 values and leave every other byte alone.
+# Surgical text edit, NOT ConvertTo-Json.
+#
+# deps.json is mostly prose: every dependency carries a "//" block explaining
+# why that version, what gets extracted, and which risks attach to it.
+# Round-tripping through ConvertTo-Json reflows the whole file and escapes every
+# apostrophe and angle bracket into ' / <, leaving the documentation
+# technically valid and practically unreadable. So rewrite only the sha256
+# values and leave every other byte alone.
+#
+# Defined as a function because it is called twice: once for the runtime
+# dependencies, and again for Inno Setup, which is fetched later and only when
+# packaging. Writing the file once up front would silently discard an Inno
+# Setup repin.
+function Set-DepHash {
+    param([hashtable]$Hashes)
+    if ($Hashes.Count -eq 0) { return }
+
     $raw = [System.IO.File]::ReadAllText($DepsFile, [System.Text.Encoding]::UTF8)
-    foreach ($name in $newHashes.Keys) {
+    foreach ($name in $Hashes.Keys) {
+        if (-not $Hashes[$name]) { continue }
         # Anchor on the dependency key, then the FIRST sha256 after it. Keys are
         # unique and sha256 always precedes the "//" block within a dependency.
         $pattern = '(?s)("' + [regex]::Escape($name) + '"\s*:\s*\{.*?"sha256"\s*:\s*")[^"]*(")'
-        $replacement = '${1}' + $newHashes[$name] + '${2}'
+        $replacement = '${1}' + $Hashes[$name] + '${2}'
         $updated = [regex]::Replace($raw, $pattern, $replacement, 1)
-        if ($updated -eq $raw -and $newHashes[$name]) {
+        if ($updated -eq $raw) {
             Write-Warn "could not locate the sha256 field for '$name' - update it by hand"
         }
         $raw = $updated
@@ -185,6 +205,10 @@ if ($UpdateHashes) {
     # Fail loudly rather than silently emitting a file the next build rejects.
     try { $null = Get-Content $DepsFile -Raw | ConvertFrom-Json }
     catch { Write-Err "deps.json is no longer valid JSON after the hash update."; exit 1 }
+}
+
+if ($UpdateHashes) {
+    Set-DepHash -Hashes $newHashes
     Write-Ok "deps.json hashes updated in place - COMMIT THIS"
 }
 
@@ -427,5 +451,107 @@ Write-Host ("   size     : {0:N0} MB across {1:N0} files" -f ($size/1MB), (Get-C
 Write-Host ("   node     : {0}   mongodb : {1}" -f $deps.node.version, $deps.mongodb.version) -ForegroundColor DarkGray
 Write-Host ("   caddy    : {0}    winsw   : {1}" -f $deps.caddy.version, $deps.winsw.version) -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "   Next: package with Inno Setup (Phase 6)." -ForegroundColor DarkGray
+
+# ── 6. Package (optional) ────────────────────────────────────────────────────
+if (-not $Package) {
+    Write-Host "   Next: .\installer\build.ps1 -Package   (or run ISCC on setup.iss)" -ForegroundColor DarkGray
+    Write-Host ""
+    exit 0
+}
+
+Write-Step "Packaging the installer"
+
+# Resolve the compiler, in order of preference:
+#   1. -IsccPath, if given
+#   2. a system-wide Inno Setup 6 install
+#   3. a PORTABLE copy fetched into .depcache
+#
+# Step 3 exists so a clean checkout can build a release without anyone
+# hand-installing tooling first - the same reason every runtime in deps.json is
+# pinned and auto-fetched. The portable extraction touches no registry keys, no
+# Program Files, and no PATH.
+if (-not $IsccPath) {
+    foreach ($candidate in @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+    )) {
+        if (Test-Path $candidate) { $IsccPath = $candidate; break }
+    }
+}
+
+if (-not $IsccPath) {
+    $isccDir = Join-Path $CacheDir 'innosetup'
+    $portableIscc = Join-Path $isccDir 'ISCC.exe'
+
+    if (Test-Path $portableIscc) {
+        $IsccPath = $portableIscc
+        Write-Ok "using the portable Inno Setup in .depcache"
+    } else {
+        Write-Host "    .... Inno Setup not installed - fetching a portable copy" -ForegroundColor DarkGray
+        $isccInstaller = Get-Dependency -Name 'innosetup' -Dep $deps.innosetup
+        New-Item -ItemType Directory -Force $isccDir | Out-Null
+
+        # /PORTABLE=1 unpacks without registering anything on the machine.
+        $p = Start-Process -FilePath $isccInstaller -ArgumentList @(
+            '/VERYSILENT', '/PORTABLE=1', '/SUPPRESSMSGBOXES', "/DIR=$isccDir"
+        ) -Wait -PassThru
+        if ($p.ExitCode -ne 0 -or -not (Test-Path $portableIscc)) {
+            Write-Err "Could not extract a portable Inno Setup (exit $($p.ExitCode))."
+            Write-Host "         Install Inno Setup 6 from https://jrsoftware.org/isdl.php" -ForegroundColor DarkGray
+            Write-Host "         or pass -IsccPath <path to ISCC.exe>." -ForegroundColor DarkGray
+            exit 1
+        }
+        $IsccPath = $portableIscc
+        Write-Ok "portable Inno Setup $($deps.innosetup.version) ready (nothing installed to the system)"
+
+        # Inno Setup is fetched after the deps.json write above, so persist its
+        # hash separately or a repin here would be silently lost.
+        if ($UpdateHashes) {
+            Set-DepHash -Hashes @{ innosetup = $deps.innosetup.sha256 }
+            Write-Ok "deps.json innosetup hash updated - COMMIT THIS"
+        }
+    }
+}
+
+if (-not (Test-Path $IsccPath)) {
+    Write-Err "ISCC.exe not found at $IsccPath"
+    exit 1
+}
+Write-Ok "using $IsccPath"
+
+# Version comes from package.json so the installer, the Add/Remove Programs
+# entry and the application can never disagree about what is installed.
+$pkg = Get-Content (Join-Path $RepoRoot 'package.json') -Raw | ConvertFrom-Json
+$appVersion = $pkg.version
+if (-not $appVersion) { Write-Err "package.json has no version field."; exit 1 }
+Write-Ok "version $appVersion (from package.json)"
+
+$iss = Join-Path $InstallerDir 'setup.iss'
+$isccResult = Invoke-Native -FilePath $IsccPath -Arguments @("/DAppVersion=$appVersion", '/Qp', $iss)
+if ($isccResult.ExitCode -ne 0) {
+    Write-Err "Inno Setup compilation failed (exit $($isccResult.ExitCode))."
+    if ($isccResult.StdOut) { Write-Host $isccResult.StdOut -ForegroundColor DarkGray }
+    if ($isccResult.StdErr) { Write-Host $isccResult.StdErr -ForegroundColor DarkGray }
+    exit 1
+}
+
+$setupExe = Join-Path $InstallerDir "dist\XP-POS-Setup-$appVersion.exe"
+if (-not (Test-Path $setupExe)) {
+    Write-Err "ISCC reported success but $setupExe is missing."
+    exit 1
+}
+$setupSize = (Get-Item $setupExe).Length
+
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Green
+Write-Host "   INSTALLER READY" -ForegroundColor Green
+Write-Host "  ============================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host ("   file     : {0}" -f $setupExe) -ForegroundColor Cyan
+Write-Host ("   size     : {0:N1} MB (from a {1:N0} MB payload)" -f ($setupSize/1MB), ($size/1MB)) -ForegroundColor DarkGray
+Write-Host ("   version  : {0}" -f $appVersion) -ForegroundColor DarkGray
+Write-Host ""
+Write-Warn "NOT CODE-SIGNED. SmartScreen will warn on every download until it is."
+Write-Host "         Sign the installer AND the three service\XPPOS-*.exe wrappers" -ForegroundColor DarkGray
+Write-Host "         (WinSW ships unsigned) before distributing to clients." -ForegroundColor DarkGray
 Write-Host ""

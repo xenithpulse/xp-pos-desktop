@@ -151,7 +151,7 @@ export default function SystemHealth({
           <div>
             <h4 className="font-bold text-yellow-400">Recommendations</h4>
             <ul className="text-sm text-yellow-300 mt-2 space-y-1 list-disc list-inside">
-              <li>Keep OS and Docker updated with latest security patches</li>
+              <li>Keep Windows updated with latest security patches</li>
               <li>Enable HTTPS for production deployments</li>
               <li>Maintain regular off-box backups (at least weekly)</li>
               <li>Monitor disk usage to avoid running out of space</li>

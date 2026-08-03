@@ -144,9 +144,11 @@ export default function NetworkSettings({
           Which device network ranges may reach the POS. Enforced at the proxy
           (vendor-agnostic — no router needed). To apply a change, set{" "}
           <span className="font-mono text-neutral-300">POS_ALLOWED_CIDRS</span> in{" "}
-          <span className="font-mono text-neutral-300">.env</span> to match, then run{" "}
-          <span className="font-mono text-neutral-300">docker compose up -d caddy</span>.
-          Leave empty to allow all LAN devices.
+          <span className="font-mono text-neutral-300">C:\ProgramData\XP POS\.env</span>,
+          then re-run{" "}
+          <span className="font-mono text-neutral-300">provision.ps1</span> as
+          Administrator (it regenerates the proxy config and restarts the
+          service). Leave empty to allow all LAN devices.
         </p>
         <div className="space-y-2">
           {config?.allowedNetworks && config.allowedNetworks.length > 0 ? (

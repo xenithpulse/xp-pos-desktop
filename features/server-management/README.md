@@ -246,9 +246,11 @@ The Server Management dashboard **does NOT replace .env configuration**. Instead
 - Ensure device status is `active` (not `blocked`)
 
 ### "Backup path not saving"
-- Verify path exists and is readable by Docker
+- Verify the path exists and is writable by the services (they run as LocalSystem)
 - Check disk space available
-- Ensure path format is correct (Linux: `/path`, Windows: `C:\path`)
+- Use a full Windows path (`C:\backups`) or a UNC share (`\\server\share`).
+  A mapped drive letter belonging to a logged-in user is NOT visible to a
+  Windows service.
 
 ### "Health check fails"
 - Database might be temporarily down; refresh
@@ -313,7 +315,8 @@ For issues or questions:
 1. Check System Health diagnostics
 2. Review audit logs
 3. Consult the main [DEPLOYMENT_AND_CONFIG_GUIDE.md](../../DEPLOYMENT_AND_CONFIG_GUIDE.md)
-4. Restart the app service: `docker compose up -d`
+4. Restart the app service:
+   `& "C:\Program Files\XP POS\scripts\services.ps1" -Action Restart -Service XPPOS-App`
 
 ---
 

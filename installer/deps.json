@@ -100,6 +100,29 @@
     ]
   },
 
+  "innosetup": {
+    "version": "6.7.3",
+    "url": "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe",
+    "sha256": "9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732",
+    "//": [
+      "BUILD-MACHINE TOOL, not shipped to clients - it compiles setup.iss into",
+      "the installer .exe.",
+      "",
+      "build.ps1 -Package extracts it PORTABLY (/PORTABLE=1) into .depcache and",
+      "runs ISCC.exe from there. Nothing is installed to the system: no registry",
+      "entries, no Program Files, no PATH changes. A system-wide Inno Setup 6 is",
+      "used instead when one is present, and -IsccPath overrides both.",
+      "",
+      "This is auto-fetched for the same reason every other dependency is: the",
+      "build must be reproducible from a clean checkout without a human",
+      "installing tooling by hand first. Unlike the runtimes below it is a",
+      "developer dependency, so it does not affect installer size.",
+      "",
+      "6.7.3 is the current stable 6.x. Inno Setup 7 exists but 6.x is the",
+      "mature, widely deployed line. Releases are code-signed (Pyrsys B.V.)."
+    ]
+  },
+
   "winsw": {
     "version": "2.12.0",
     "url": "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe",

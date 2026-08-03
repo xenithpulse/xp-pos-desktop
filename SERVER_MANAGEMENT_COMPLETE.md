@@ -141,13 +141,13 @@ Expected output:
 [0002] ServerConfig initialized with defaults
 ```
 
-### Step 2: Rebuild & Restart App
-```bash
-docker compose up -d --build app
-docker compose logs -f app
+### Step 2: Restart the App Service
+```powershell
+& "C:\Program Files\XP POS\scripts\services.ps1" -Action Restart -Service XPPOS-App
+Get-Content "C:\ProgramData\XP POS\logs\app\XPPOS-App.out.log" -Tail 50 -Wait
 ```
 
-Wait for "listening on 3000" or similar.
+Wait for "Ready in" / "listening on 3000" or similar.
 
 ### Step 3: Access Dashboard
 ```
@@ -289,7 +289,7 @@ Roadmap for future versions:
 ```
 1. Check you're logged in as super_admin
 2. Check migration ran: mongo → server_config collection should exist
-3. Restart app: docker compose restart app
+3. Restart app: services.ps1 -Action Restart -Service XPPOS-App
 4. Clear browser cache: Ctrl+Shift+Delete
 ```
 
@@ -302,18 +302,19 @@ This app provides the management interface, not the enforcement
 
 ### Backup Path Errors?
 ```
-1. Check path exists: docker compose exec app ls -la /path
-2. Check permissions: docker compose exec app stat /path
-3. Check disk space: docker compose exec backup df -h
-4. Review logs: docker compose logs backup
+1. Check path exists: Test-Path "<path>"
+2. Check permissions: Get-Acl "<path>" | Format-List
+3. Check disk space: Get-PSDrive -PSProvider FileSystem
+4. Review logs: the XP Thermal Service owns backups - see its own log
 ```
 
 ### Health Check Failing?
 ```
-1. Database: docker compose logs mongo
-2. Disk: docker compose exec app df -h
-3. Memory: docker compose stats
-4. Ports: docker compose port app
+1. Database: Get-Content "C:\ProgramData\XP POS\logs\mongodb\XPPOS-MongoDB.out.log" -Tail 50
+2. Disk:     Get-PSDrive -PSProvider FileSystem
+3. Memory:   Get-Process node,mongod,caddy | Select Name,Id,WS,CPU
+4. Ports:    Get-NetTCPConnection -State Listen | Where LocalPort -in 8080,3000,27017
+5. Services: services.ps1 -Action Status
 ```
 
 ---
@@ -321,9 +322,9 @@ This app provides the management interface, not the enforcement
 ## Test the Setup
 
 ### Verify Migration
-```bash
-docker compose exec mongo mongosh --quiet --eval \
-  "db.server_config.findOne()" | head -5
+```powershell
+& "C:\Program Files\XP POS\mongodb\bin\mongosh.exe" `
+  "mongodb://127.0.0.1:27017/POS_PROD" --quiet --eval "db.server_config.findOne()"
 ```
 
 Should return config document with defaults.

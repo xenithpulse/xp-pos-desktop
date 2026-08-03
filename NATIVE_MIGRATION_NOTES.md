@@ -4,10 +4,12 @@ Handover document. Kept current as each phase lands. If you are picking this up
 cold, read "Why" in the project brief first, then Phase 0 below — the three
 spikes there are what the rest of the design rests on.
 
-**Status: Phases 0–5 complete. Phases 6–8 not started.**
+**Status: all phases (0–8) complete.**
 
-A full installer payload builds, verifies, and runs: 438 MB, Node 24.18.1 +
-MongoDB 7.0.14 + Caddy 2.8.4 + WinSW 2.12.0, all sha256-pinned.
+`.\installer\build.ps1 -Package` produces **`XP-POS-Setup-0.1.0.exe`, 118 MB** —
+a single self-contained installer with Node 24.18.1, MongoDB 7.0.14, Caddy 2.8.4
+and WinSW 2.12.0, all sha256-pinned. The payload has been executed; the
+installer has been compiled but **not yet run** (see Phase 6).
 
 Decisions taken by the owner: **bundle `mongod.exe`** (not the official MSI),
 and ship **stock `caddy.exe` v2.8.4** (LAN-by-IP; `Caddyfile.tls` needs a
@@ -298,6 +300,79 @@ Notes for Phases 4–6:
 - **`rs.initiate` returns before the node is actually PRIMARY.** The spike had
   to poll `hello.isWritablePrimary` for up to 30s. An installer that initiates
   and immediately starts the app will race.
+
+---
+
+## Phase 8 — Docker artifacts removed (done)
+
+All deleted via `git rm`, so every file is recoverable from history:
+
+```
+docker-compose.yml   Dockerfile   Caddy.Dockerfile   .dockerignore
+caddy/               (Caddyfile.http, Caddyfile.tls, entrypoint.sh)
+dns/                 (Linux-only dnsmasq, never used on Windows)
+deploy.cmd           scripts/deploy.ps1
+lib/backup/backup.sh
+```
+
+Two beyond the brief's explicit list, both unambiguous Docker artifacts:
+`.dockerignore`, and `caddy/` — its Caddyfiles are superseded by
+`installer/config/` and it contained a Docker `entrypoint.sh`. Keeping them
+would have left two competing sets of Caddyfiles.
+
+### `proxy.ts` was NOT deleted — do not delete it
+
+It sits in the repo root alongside the Docker files and looks like one. It is
+**Next 16's renamed `middleware.ts`**: the Edge-runtime rate limiter that caps
+credential sign-in attempts at 5 per 15 minutes per IP. Deleting it silently
+removes the only credential-stuffing protection on the login endpoint.
+
+(It is also why Phase 2's edge-runtime constraint is real — this app genuinely
+compiles for the edge runtime, so `instrumentation.ts` must keep its Node-only
+code behind a dynamic import.)
+
+### Stale instructions were the bigger problem
+
+Deleting files was trivial. The real risk was **documentation and UI that would
+send a technician down a dead end on a native box.** Everything below told
+someone to run a `docker compose` command that no longer exists:
+
+| Location | Was |
+|---|---|
+| `features/server-management/components/NetworkSettings.tsx` | "run `docker compose up -d caddy`" — **shown in the POS UI** |
+| `features/server-management/components/SystemHealth.tsx` | "Keep OS and Docker updated" — shown in the UI |
+| `.env.example` (ships as `config/env.template`) | two `docker compose` instructions |
+| `SERVER_MANAGEMENT_COMPLETE.md` | 12 commands |
+| `SETUP_SERVER_MANAGEMENT.md` | 13 commands |
+| `features/server-management/README.md` | 2 commands |
+| `next.config.ts`, both upload routes | comments describing a Docker volume |
+
+All rewritten to native equivalents (`services.ps1`, `provision.ps1`, the
+ProgramData log paths, bundled `mongosh.exe`/`mongodump.exe`). Historical
+mentions that explain *why* something is the way it is were deliberately kept —
+for example the `.env.example` note about `--bind_ip_all` only being survivable
+under Docker.
+
+Two genuinely useful facts surfaced while rewriting the runbooks, and are now
+documented where a technician will hit them:
+
+- The services run as **LocalSystem**, so a mapped drive letter belonging to a
+  logged-in user is invisible to them. Backup paths must be full paths or UNC
+  shares. This will otherwise present as "backups succeed but no files appear".
+- MongoDB sizes its WiredTiger cache at 50% of RAM minus 1 GB. On a shared box
+  that is worth capping in `mongod.cfg`.
+
+### `DEPLOY.md` rewritten
+
+Now documents the native install end to end: prerequisites, what the installer
+does, the ProgramData/Program Files split, the three services, day-to-day
+`services.ps1` operations, log locations, configuration changes, the AVX
+requirement, troubleshooting, uninstall, backups, and how a developer builds the
+installer.
+
+The unattended-start verification is called out near the top with the reasoning
+attached, because it is the reason this project exists and it is the one step a
+technician is most likely to skip.
 
 ---
 
@@ -711,32 +786,187 @@ ws://127.0.0.1:3998/ws  no cookie -> 401                  (auth works on Node 24
 
 ---
 
-## Phase 7 — cross-repo handoff (xp-thermal-service)
+## Phase 6 — Installer (built and compiling; runtime behaviour untested)
 
-**The repo is present locally at `E:\xp-thermal-service`, so this is real work,
-not a documentation-only handoff.** Recording the required change here as the
-brief asks, so it is not lost if the two repos are worked on separately.
+`installer/setup.iss`, Inno Setup 6.7.3. One command produces the whole thing:
 
-`src/backup/backup-manager.ts` shells out to Docker in three places:
+```powershell
+.\installer\build.ps1 -Package
+  -> installer\dist\XP-POS-Setup-0.1.0.exe
+```
 
-| Location | Today | Must become |
+**118 MB installer from the 438 MB payload** (3.7x, lzma2/max + solid
+compression) — comfortably under the brief's 300–500 MB estimate. Verified as a
+real Inno installer with correct embedded metadata (`ProductName` XP POS,
+`ProductVersion` 0.1.0, `CompanyName` XenithPulse).
+
+The version is read from `package.json` and passed as `/DAppVersion`, so the
+installer filename, the Add/Remove Programs entry and the app can never
+disagree. `AppId` is a fixed GUID and must never change — it is what makes
+Windows treat a new build as an upgrade instead of a second parallel install.
+
+### AVX gate — the hardware risk, closed
+
+`InitializeSetup` calls `IsProcessorFeaturePresent(39)`
+(`PF_AVX_INSTRUCTIONS_AVAILABLE`) and **refuses to install** without it, naming
+the affected chips and offering the MongoDB 4.4 route.
+
+The API was validated independently before being written into Pascal:
+
+| Feature id | Result on the dev CPU (Xeon W-10855M) | Correct? |
 |---|---|---|
-| `dockerText()` (line ~66) | `spawn('docker', args)` helper | delete, or repurpose |
-| `resolveContainer()` (line ~84) | `docker ps --filter label=com.docker.compose.service=<svc>` | delete — there is no container |
-| `dumpToTempFile()` (line ~109) | `docker exec <c> mongodump --archive --db=<db> [--gzip]` | `<InstallDir>\mongodb\bin\mongodump.exe --host 127.0.0.1 --port 27017 --archive --db=<db> [--gzip]` |
-| restore path (line ~242) | `docker exec -i <c> mongorestore …` | `mongorestore.exe --host 127.0.0.1 --port 27017 …` (stdin unchanged) |
+| 17 `PF_XSAVE_ENABLED` | True | yes |
+| **39 `PF_AVX`** | **True** | yes |
+| 40 `PF_AVX2` | True | yes |
+| 41 `PF_AVX512F` | False | yes — Comet Lake has no AVX-512 |
+| 250 (bogus) | False | yes — it is not just answering True |
 
-Config in `src/utils/config.ts` / `src/types/index.ts` carries
-`mongo.dockerComposeService` and `mongo.containerName`. Both become dead and
-should be replaced by a `mongo.binDir` (or resolved from the POS install path in
-the registry). The streaming, timeout, retention and multi-destination logic all
-stay exactly as-is — only the process being spawned changes.
+Refusing is the right call: the failure it prevents is an install that looks
+completely successful, after which `mongod` dies with `Illegal instruction` the
+first time the restaurant takes an order — by which point the technician has
+left.
 
-Error strings mentioning "is Docker Desktop running?" must change too; on a
-native box that message sends a technician down entirely the wrong path.
+### Upgrade safety
 
-**Backups gate go-live.** Until this lands, a native install has no working
-backup.
+`PrepareToInstall` runs `services.ps1 -Action Stop` before any file is written,
+and **aborts the install with an actionable message if the services will not
+stop**. This is not defensive padding: a running service holds `node.exe`,
+`mongod.exe` and `caddy.exe` open, Windows will not replace an open file, and
+Inno's `ignoreversion` copy would leave the site on a mixture of old and new
+binaries *without reporting an error*. A 3 second settle follows the stop,
+because Windows reports a service Stopped slightly before the process has
+released its handles.
+
+`C:\ProgramData\XP POS` is never touched by an upgrade. Only `caddy.env` and
+`Caddyfile` are removed on uninstall, and only because provisioning regenerates
+them — they are not user data.
+
+### Uninstall
+
+`usUninstall` unregisters the services while the wrapper executables still
+exist (Inno has not deleted files yet at that point), then removes the firewall
+rules — leaving an open inbound port behind after an uninstall would be sloppy.
+
+The database prompt is **opt-in and double-confirmed**, defaulting to KEEP both
+times. It names what is actually at stake — every order, table, menu item and
+daily sheet, the uploaded images, and the site's login secret — rather than
+saying "user data", because the person clicking it is often a technician who did
+not set the site up. Declining shows where the data was kept and that
+reinstalling resumes from it.
+
+### VC++ runtime
+
+`vc_redist.x64.exe` (staged from the MongoDB archive by `build.ps1`) is chained
+`/install /quiet /norestart`, gated on a `Check:` that looks for
+`vcruntime140.dll` and `msvcp140.dll` in `{sys}` so it is skipped when already
+present. This closes the "no prerequisites" gap found in Phase 0.
+
+### One detail that would have silently broken installs
+
+Every PowerShell invocation passes `-ExecutionPolicy Bypass`. Without it, a box
+with a restricted execution policy — group policy on a managed machine, or just
+the Windows Server default — refuses to run the provisioning script, and the
+install **reports success with nothing configured**.
+
+### NOT verified — needs a test box
+
+The script compiles and the Pascal parses, but **no install, upgrade, or
+uninstall has actually been run.** This session had no elevation, and installing
+on the dev box would register three services, create `C:\ProgramData\XP POS` and
+add firewall rules — not an appropriate side effect of a build check.
+
+Test in this order, ideally on a VM with a snapshot:
+
+1. **Fresh install** on a clean Windows 10/11 x64 box. Confirm the staff URL at
+   the end, then seed an admin and take an order.
+2. **The boot test** (still the single most important check in the project):
+   reboot, do NOT log in, and reach the POS from another machine.
+3. **Upgrade**: bump `version` in package.json, rebuild, install over the top.
+   Confirm the database, uploads and `.env` survive and that `services.ps1
+   -Action Status` shows all three running on the new binaries.
+4. **Uninstall declining data deletion**, then reinstall — the site should come
+   back with its data and existing logins intact.
+5. **Uninstall accepting data deletion** — only on a throwaway box.
+6. If any non-AVX hardware is available, confirm the gate actually fires.
+
+### Code signing — now slightly wider than the brief assumed
+
+The installer is `NotSigned`, so SmartScreen will warn on every download. Two
+things need signing, not one: the installer itself **and** the three
+`service\XPPOS-*.exe` wrappers, because WinSW's own releases are unsigned (see
+Phase 3). `build.ps1 -Package` prints this warning on every run.
+
+---
+
+## Phase 7 — Backups, cross-repo (done)
+
+**Backups gate go-live**, and the repo was present at `E:\xp-thermal-service`,
+so this was done rather than documented. Changes are committed to that repo's
+working tree on `main` (clean before this work started).
+
+### What changed
+
+| Location | Was | Now |
+|---|---|---|
+| `dockerText()` | `spawn('docker', …)` helper | **deleted** |
+| `resolveContainer()` | `docker ps --filter label=com.docker.compose.service=<svc>` | **deleted** — there is no container |
+| — | — | **`toolPath()`** — resolves + existence-checks `mongodump.exe` / `mongorestore.exe` |
+| — | — | **`connectionArgs()`** — shared `--host/--port` |
+| `dumpToTempFile(container)` | `docker exec <c> mongodump --archive --db=<db>` | `mongodump.exe --host 127.0.0.1 --port 27017 --archive --db=<db> [--gzip]` |
+| `restore()` | `docker exec -i <c> mongorestore …` | `mongorestore.exe --host … --archive --drop --nsInclude=<db>.*` (stdin unchanged) |
+
+Config: `mongo.dockerComposeService` and `mongo.containerName` are gone,
+replaced by `mongo.binDir`, `mongo.host`, `mongo.port`.
+
+The streaming, timeout, retention, pruning and multi-destination logic is
+untouched — only the spawned process changed. `--archive` with no value means
+stdout for dump and stdin for restore, which is the same contract the
+`docker exec` form relied on, so the piping did not need to change.
+
+Error strings no longer say "is Docker Desktop running?" — on a native box that
+sends a technician down entirely the wrong path. A missing tool now reports the
+resolved path and names the `backup.mongo.binDir` setting to fix.
+
+### Verified — full round trip against a live database
+
+Not a compile check. The exact argv the rewritten manager builds, run against
+the bundled binaries and a real replica set — 7/7:
+
+```
+$ mongodump --host 127.0.0.1 --port 27017 --archive --db=POS_BACKUP_TEST --gzip
+  archive produced (506 bytes), gzip magic 1f 8b confirmed
+  [wipe orders, insert a bogus table row]
+$ mongorestore --host 127.0.0.1 --port 27017 --archive --drop --nsInclude=POS_BACKUP_TEST.* --gzip
+  both orders restored with values intact
+  --drop removed the row added after the backup
+```
+
+The `--drop` assertion matters: it proves restore genuinely replaces the
+collection rather than merging into it, which is what makes a restore
+trustworthy after a bad day.
+
+`npm run build` succeeds; the compiled `dist/backup/backup-manager.js` contains
+two `spawn` sites, both using the resolved tool path, and zero `'docker'`
+literals.
+
+### Upgrade path for an existing site
+
+`config.json` is gitignored (it is the live per-site config); the tracked
+template is `config.example.json`. An existing `config.json` still carrying
+`dockerComposeService` / `containerName` **parses fine** — zod strips unknown
+keys and applies the new defaults — so a site upgrading from the Docker build
+keeps working without a hand-edited config.
+
+One caveat: `binDir` defaults to `C:\Program Files\XP POS\mongodb\bin`. A site
+that installed the POS somewhere else must set it explicitly, and will get a
+clear error naming the setting if they do not.
+
+### Still open
+
+`mongodump.exe` and `mongorestore.exe` reach the database over loopback with no
+authentication, exactly as the app does. That is consistent with the current
+security model (the 127.0.0.1 bind is the control), but it does mean any local
+process can dump the database. Worth revisiting if MongoDB auth is ever added.
 
 ---
 

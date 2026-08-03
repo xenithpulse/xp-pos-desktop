@@ -1,7 +1,7 @@
 // app/api/uploads/[filename]/route.ts
 //
 // GET /api/uploads/<filename> — stream a previously uploaded image back to the
-// browser from the server's local disk (Docker volume). Files live outside
+// browser from the server's local disk (UPLOAD_DIR). Files live outside
 // `public/`, so this route is what makes stored images actually viewable.
 //
 // Read access is intentionally public: menu images are shown on customer-facing
