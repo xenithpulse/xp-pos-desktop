@@ -2,12 +2,13 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import Pusher, { type Channel } from 'pusher-js';
 import { useSession } from 'next-auth/react';
+import { subscribeRealtime } from '@/lib/realtime/wsClient';
+import { DAILY_SHEET_EDIT_CONTEXT_EVENT } from '@/lib/realtime/types';
 import type { ISlipEntry, IExpenseEntry, ICashSlip } from './ExpenseSheet/utils';
 
 const TARGET_DATE_KEY = 'dailySheet_targetDate';
-/* Per-tab id so we can ignore Pusher echoes triggered by THIS tab's own PUT.
+/* Per-tab id so we can ignore realtime echoes triggered by THIS tab's own PUT.
  * Other tabs/devices see a different id and update their state. */
 const TAB_ID =
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -485,58 +486,45 @@ export function DailySheetProvider({ children }: { children: React.ReactNode }) 
     return () => { cancelled = true; };
   }, [sessionStatus]);
 
-  /* ── Realtime sync via Pusher ──
+  /* ── Realtime sync ──
    * When the same user changes their editing context on another device or
-   * tab, the PUT endpoint emits `daily_sheet_edit_context_changed` on the
-   * user's private channel. We subscribe here and apply the change without
-   * re-PUTting (originTabId guards against echoing our own writes).
-   * Falls back gracefully if env vars are missing — backdate still works,
-   * just without realtime fan-out. */
+   * tab, the PUT endpoint sends DAILY_SHEET_EDIT_CONTEXT_EVENT to that user's
+   * sockets. We apply the change without re-PUTting (originTabId guards
+   * against echoing our own writes).
+   *
+   * NOTE: this replaces a Pusher block that had never executed in production.
+   * It bailed out unless NEXT_PUBLIC_PUSHER_CLUSTER was set, and that variable
+   * is deliberately empty on every appliance (the LAN build connects
+   * same-origin, not to the Pusher cloud). It also pointed at an authEndpoint
+   * '/api/pusher/auth' that does not exist anywhere in the repo. So backdating
+   * has silently never synced across a user's tabs — this is a fix, not a
+   * like-for-like port.
+   *
+   * No channel name and no username are needed now: the server records the
+   * authenticated user on the socket at upgrade time and addresses the message
+   * to them directly. We share the app-wide socket, so this adds no second
+   * connection per browser. */
   useEffect(() => {
     if (sessionStatus !== 'authenticated') return;
-    const username = session?.user?.name;
-    if (!username) return;
-    const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
-    const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
-    if (!pusherKey || !pusherCluster) return; // Pusher not configured
 
-    const sanitizedUser = username.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const channelName = `private-user-${sanitizedUser}`;
+    const unsubscribe = subscribeRealtime((message) => {
+      if (!mountedRef.current) return;
+      if (message.type !== DAILY_SHEET_EDIT_CONTEXT_EVENT) return;
 
-    const pusher = new Pusher(pusherKey, {
-      cluster: pusherCluster,
-      authEndpoint: '/api/pusher/auth',
+      const payload = message as { targetDate?: string | null; originTabId?: string };
+      // Ignore echoes from this tab's own PUT
+      if (payload.originTabId && payload.originTabId === TAB_ID) return;
+      const incoming = payload.targetDate ?? null;
+      // Use the functional setter to compare without depending on stale closure
+      setTargetDateState((current) => {
+        if (current === incoming) return current;
+        applyTargetDateLocal(incoming);
+        return incoming;
+      });
     });
 
-    let channel: Channel | null = null;
-    try {
-      channel = pusher.subscribe(channelName);
-      channel.bind('daily_sheet_edit_context_changed', (payload: { targetDate?: string | null; originTabId?: string }) => {
-        if (!mountedRef.current) return;
-        // Ignore echoes from this tab's own PUT
-        if (payload?.originTabId && payload.originTabId === TAB_ID) return;
-        const incoming = payload?.targetDate ?? null;
-        // Use the functional setter to compare without depending on stale closure
-        setTargetDateState((current) => {
-          if (current === incoming) return current;
-          applyTargetDateLocal(incoming);
-          return incoming;
-        });
-      });
-    } catch (err) {
-      console.warn('[DailySheetContext] pusher subscribe failed:', err);
-    }
-
-    return () => {
-      try {
-        channel?.unbind_all();
-        pusher.unsubscribe(channelName);
-        pusher.disconnect();
-      } catch {
-        /* swallow — teardown best-effort */
-      }
-    };
-  }, [sessionStatus, session?.user?.name, applyTargetDateLocal]);
+    return unsubscribe;
+  }, [sessionStatus, applyTargetDateLocal]);
 
   const value: DailySheetContextValue = {
     sheetId,

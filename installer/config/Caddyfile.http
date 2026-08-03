@@ -1,0 +1,62 @@
+# C:\ProgramData\XP POS\Caddyfile  (HTTP mode — the default)
+#
+# Used when APP_DOMAIN is NOT set: plain-HTTP LAN access via the box IP.
+# The provisioning script copies either this file or Caddyfile.tls into place
+# as "Caddyfile" depending on whether APP_DOMAIN is configured.
+#
+# ── Difference from the Docker Caddyfile this replaces ──────────────────────
+# Under compose, Caddy always listened on :80 INSIDE the container and Docker
+# mapped ${POS_HTTP_PORT}:80. There is no mapping layer natively, so Caddy must
+# bind the real host port itself — hence the variable in the site address
+# below. Upstreams changed from service names (app:3000) to 127.0.0.1 for the
+# same reason: there is no Docker network to resolve names on.
+#
+# ── Every {$VAR} here is resolved in caddy.env, never read from .env ────────
+# Caddy substitutes a {$VAR:default} default ONLY when the variable is UNSET. A
+# set-but-EMPTY value wins. Since ".env with a blank value" is the documented
+# way to say "use the default" for both settings below, feeding .env directly
+# to Caddy would break both: an empty POS_HTTP_PORT yields the invalid address
+# ":" and an empty POS_ALLOWED_CIDRS 403s the entire LAN. The provisioning
+# script resolves both into caddy.env. Do not point --envfile at .env.
+#
+# The ":8080" fallback below is belt-and-braces for the UNSET case only; the
+# generator is what handles the empty case. Getting this wrong is silent and
+# nasty — measured with Caddy 2.8.4:
+#
+#     POS_HTTP_PORT unset or empty  →  address ":"  →  Caddy listens on :443
+#     ...and `caddy validate` reports "Valid configuration" either way.
+#
+# So a misconfigured port does not fail loudly: the POS just vanishes from
+# :8080, reappears on :443 with an untrusted auto-HTTPS cert, and every staff
+# device gets a connection error. The provisioning script asserts the adapted
+# listen address for exactly this reason.
+
+:{$POS_HTTP_PORT:8080} {
+	# ── Device access control (vendor-agnostic, no router needed) ────────────
+	# Only client IPs inside POS_ALLOWED_CIDRS may reach the POS. The generator
+	# writes "0.0.0.0/0 ::/0" (allow every LAN device) when the operator leaves
+	# POS_ALLOWED_CIDRS blank in .env, which is the default.
+	#
+	# WARNING: this must never resolve to an EMPTY list. `not remote_ip` with no
+	# ranges matches EVERY request and 403s the whole LAN. See the note above —
+	# the generator is what guarantees it is non-empty.
+	# Ranges are SPACE-separated, not comma-separated.
+	@blocked not remote_ip {$POS_ALLOWED_CIDRS}
+	handle @blocked {
+		respond "Access to this POS is restricted to authorized devices on this network." 403
+	}
+
+	handle {
+		# Everything, realtime (/ws) included, goes to the app: the WebSocket
+		# server runs in-process now, so there is no second upstream to split
+		# off. Caddy negotiates the upgrade with no extra configuration.
+		reverse_proxy 127.0.0.1:3000 {
+			# Forward the address the browser actually used so next-auth
+			# (AUTH_TRUST_HOST) can rebuild its URL from it. This is what lets
+			# login follow the box's LAN IP automatically. Caddy sets these by
+			# default; kept explicit so the behaviour is obvious on handover.
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+}

@@ -34,11 +34,9 @@
 	}
 
 	handle {
-		# Realtime (Pusher protocol) → Soketi. Caddy upgrades wss automatically.
-		@soketi path /app/* /apps/*
-		reverse_proxy @soketi soketi:6001
-
-		# Everything else → the Next.js app.
+		# Everything → the Next.js app, realtime (/ws) included: the WebSocket
+		# server runs in-process now, so there is no Soketi upstream to split
+		# off. Caddy upgrades wss automatically, no extra directive needed.
 		reverse_proxy app:3000 {
 			# Forward the real host/scheme so next-auth (AUTH_TRUST_HOST) rebuilds
 			# its URL from the request — here it resolves to https://{$APP_DOMAIN}

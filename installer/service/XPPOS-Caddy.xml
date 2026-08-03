@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XPPOS-Caddy — the reverse proxy. THE ONLY SERVICE REACHABLE FROM THE LAN.
+
+  Everything else in this stack binds 127.0.0.1. Caddy is what publishes the
+  POS to staff devices, terminates TLS when a domain is configured, and
+  enforces the POS_ALLOWED_CIDRS device allow-list.
+
+  WinSW v2.12.0 (net461). The wrapper beside this file must be named
+  XPPOS-Caddy.exe. %BASE% is C:\Program Files\XP POS\service.
+-->
+<service>
+  <id>XPPOS-Caddy</id>
+  <name>XP POS Web Proxy (Caddy)</name>
+  <description>Reverse proxy for the XP POS appliance. Publishes the POS to the LAN and enforces the device allow-list.</description>
+
+  <executable>%BASE%\..\caddy\caddy.exe</executable>
+
+  <!--
+    ── Why a SEPARATE caddy.env and not the app's .env ──────────────────────
+    The Caddyfile reads {$POS_ALLOWED_CIDRS:0.0.0.0/0 ::/0}. Caddy substitutes
+    that default ONLY when the variable is UNSET. A set-but-EMPTY value wins
+    and collapses the matcher to `not remote_ip` with zero ranges — which
+    matches EVERY request and 403s the entire LAN.
+
+    `POS_ALLOWED_CIDRS=` (blank = allow all devices) is the documented default
+    in .env, so feeding .env straight to Caddy would lock every site out on
+    first boot. Under Docker this never bit because compose resolved the
+    allow-all value itself before Caddy saw it (`${POS_ALLOWED_CIDRS:-0.0.0.0/0 ::/0}`).
+
+    caddy.env is the native equivalent of that compose layer: the provisioning
+    script generates it from .env and writes the RESOLVED value, substituting
+    the allow-all range whenever the operator left the setting blank. It is
+    regenerated on every install/upgrade — do not hand-edit it, edit .env.
+  -->
+  <arguments>run --config "C:\ProgramData\XP POS\Caddyfile" --adapter caddyfile --envfile "C:\ProgramData\XP POS\caddy.env"</arguments>
+  <workingdirectory>%BASE%\..\caddy</workingdirectory>
+
+  <!--
+    Caddy keeps issued certificates and its ACME account key here. This MUST
+    persist across upgrades: re-issuing on every restart will hit Let's
+    Encrypt rate limits and eventually leave the site without a certificate.
+    Under Docker these were the pos_caddy_data / pos_caddy_config volumes.
+  -->
+  <env name="XDG_DATA_HOME" value="C:\ProgramData\XP POS\caddy\data"/>
+  <env name="XDG_CONFIG_HOME" value="C:\ProgramData\XP POS\caddy\config"/>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart/>
+
+  <depend>XPPOS-App</depend>
+
+  <!--
+    Recovery matters most here: if Caddy is down the POS is invisible to the
+    floor even though the app and database are perfectly healthy.
+  -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <logpath>C:\ProgramData\XP POS\logs\caddy</logpath>
+  <log mode="roll">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+
+  <stoptimeout>30 sec</stoptimeout>
+  <waithint>60 sec</waithint>
+
+  <priority>Normal</priority>
+</service>

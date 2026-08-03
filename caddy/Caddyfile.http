@@ -1,6 +1,6 @@
 # HTTP-only mode (default). Used when APP_DOMAIN is NOT set — i.e. plain-HTTP
-# LAN access via the box IP on port 80. Realtime (/app/*, /apps/*) is proxied
-# to Soketi; everything else to the Next.js app.
+# LAN access via the box IP on port 80. Everything, realtime (/ws) included,
+# is proxied to the Next.js app — the WebSocket server runs in-process.
 :80 {
 	# ── Device access control (vendor-agnostic, no router needed) ────────────
 	# Only client IPs inside POS_ALLOWED_CIDRS may reach the POS. Default
@@ -19,9 +19,10 @@
 	}
 
 	handle {
-		@soketi path /app/* /apps/*
-		reverse_proxy @soketi soketi:6001
-
+		# Realtime lives INSIDE the app process now (Soketi is gone), so /ws is
+		# just another path on the same upstream and needs no separate rule —
+		# the catch-all below already carries it. Caddy negotiates the
+		# WebSocket upgrade with no extra configuration.
 		reverse_proxy app:3000 {
 			# Forward the address the browser actually used so next-auth
 			# (AUTH_TRUST_HOST) can rebuild its URL from it. This is what lets

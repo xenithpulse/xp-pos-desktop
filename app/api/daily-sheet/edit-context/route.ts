@@ -3,17 +3,14 @@
 // Per-user daily-sheet editing context (which day the user is working on).
 //   GET — the caller's current targetDate (null = today)
 //   PUT — set it, then fan the change out to the user's other tabs/devices via
-//         a best-effort Pusher event on their private channel
+//         a best-effort realtime message addressed to that user's sockets
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { getSession } from '@/lib/auth';
 import { EditContextModel } from '@/models/factories/EditContext';
-import { pusherServer } from '@/lib/realtime/pusher-server';
+import { sendToUser } from '@/lib/realtime/eventBus';
+import { DAILY_SHEET_EDIT_CONTEXT_EVENT } from '@/lib/realtime/types';
 import { isYMD } from '@/utils/dailySheetOpening';
-
-function sanitizeUser(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_');
-}
 
 export async function GET() {
   const session = await getSession();
@@ -51,17 +48,18 @@ export async function PUT(req: NextRequest) {
 
   // Fan out to the user's other tabs/devices. Best-effort — realtime is an
   // enhancement; single-device continuity is covered by the GET on mount.
+  //
+  // Addressing is by username rather than a channel name: the WebSocket server
+  // records the authenticated user on each socket at upgrade time, so there is
+  // no channel to subscribe to and no name to sanitise. sendToUser never
+  // throws, so no try/catch is needed here.
   const username = session.user.name;
-  if (pusherServer && username) {
-    try {
-      await pusherServer.trigger(
-        `private-user-${sanitizeUser(username)}`,
-        'daily_sheet_edit_context_changed',
-        { targetDate, originTabId },
-      );
-    } catch (err) {
-      console.warn('[edit-context] pusher trigger failed (non-fatal):', err);
-    }
+  if (username) {
+    sendToUser(username, {
+      type: DAILY_SHEET_EDIT_CONTEXT_EVENT,
+      targetDate,
+      originTabId,
+    });
   }
 
   return NextResponse.json({ ok: true, targetDate });

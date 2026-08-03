@@ -1,17 +1,20 @@
 // lib/uploads.ts
 // Shared helpers for local (server-disk) image storage.
 //
-// Uploaded files live OUTSIDE the Next.js `public/` tree — in a Docker volume
-// mounted at UPLOAD_DIR (see docker-compose.yml: pos_uploads:/data/pos_uploads).
+// Uploaded files live OUTSIDE the Next.js `public/` tree — under the appliance
+// data root at UPLOAD_DIR (C:\ProgramData\XP POS\uploads on a native install).
 // Because they are not statically served, they are written here by the POST
 // route (/api/upload) and streamed back out by the GET route
 // (/api/uploads/[filename]). Both routes import from this module so the
 // directory, the allow-list, and the filename rules can never drift apart.
+//
+// UPLOAD_DIR must never point inside "C:\Program Files\XP POS" — an installer
+// upgrade replaces that tree wholesale and would delete every menu image.
 
 import path from "path";
 
 // Resolve the storage directory once. Falls back to a local public folder for
-// `next dev` on a workstation (where no Docker volume is mounted).
+// `next dev` on a workstation (where no appliance data root exists).
 export const UPLOAD_DIR =
   process.env.UPLOAD_DIR || path.join(process.cwd(), "public", "uploads");
 

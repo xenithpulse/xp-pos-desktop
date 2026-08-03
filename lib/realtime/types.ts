@@ -20,6 +20,24 @@ export type RealtimeEventType =
   | 'menu:category_updated'
   | 'settings:updated';
 
+/**
+ * User-scoped message type, deliberately OUTSIDE RealtimeEventType.
+ *
+ * It travels on the same socket as POS events but is addressed to one user's
+ * sockets rather than broadcast. Keeping it out of the union is what makes
+ * useRealtimeSync ignore it automatically — that hook only forwards types it
+ * recognises.
+ */
+export const DAILY_SHEET_EDIT_CONTEXT_EVENT = 'user:daily_sheet_edit_context_changed';
+
+/** Payload delivered under DAILY_SHEET_EDIT_CONTEXT_EVENT. */
+export interface DailySheetEditContextMessage {
+  type: typeof DAILY_SHEET_EDIT_CONTEXT_EVENT;
+  targetDate: string | null;
+  /** Tab that originated the change, so it can ignore its own echo. */
+  originTabId?: string;
+}
+
 export interface RealtimeEvent {
   /** Discriminator for event type */
   type: RealtimeEventType;
@@ -32,7 +50,6 @@ export interface RealtimeEvent {
   /**
    * MongoDB document version (__v) after the mutation.
    * Clients use this for strict ordering: ignore events with __v <= local __v.
-   * Absent when event was trimmed due to Pusher size limits.
    */
   __v?: number;
 }
@@ -53,7 +70,12 @@ export interface OrderPatchPayload {
   action?: string;
   tableNumber?: string;
   tableId?: string;
-  /** When true, payload was trimmed by Pusher size guard — client must refetch */
+  /**
+   * Vestigial. The server no longer trims payloads — that existed only to stay
+   * under Pusher's 10 KB cloud limit and a local socket has no such limit, so
+   * nothing sets this any more. Consumers still honour it (a `true` means
+   * refetch) and it is kept so they need no change.
+   */
   trimmed?: boolean;
 }
 

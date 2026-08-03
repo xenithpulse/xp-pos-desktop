@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XPPOS-MongoDB — the appliance database.
+
+  WinSW v2.12.0 (net461 build). The wrapper executable next to this file MUST
+  be named XPPOS-MongoDB.exe: WinSW locates its config by looking for
+  <own-exe-name>.xml in its own directory. That is why each service gets its
+  own renamed copy of the wrapper rather than three XMLs beside one exe.
+
+  %BASE% is the directory containing the wrapper, i.e.
+  C:\Program Files\XP POS\service.
+
+  First in the chain. XPPOS-App depends on this one, and XPPOS-Caddy on the
+  app. Service dependencies guarantee start ORDER, not readiness — mongod is
+  still recovering its journal when Windows considers the service "started".
+  That is fine here: lib/mongoose.ts connects with serverSelectionTimeoutMS
+  30000, and the app's health page (/login) needs no database at all, so the
+  app tolerates Mongo arriving late.
+-->
+<service>
+  <id>XPPOS-MongoDB</id>
+  <name>XP POS Database (MongoDB)</name>
+  <description>MongoDB database for the XP POS appliance. Bound to 127.0.0.1 only.</description>
+
+  <executable>%BASE%\..\mongodb\bin\mongod.exe</executable>
+  <arguments>--config "C:\ProgramData\XP POS\mongod.cfg"</arguments>
+
+  <!--
+    Delayed start. Every service in this stack is delayed-auto so the box
+    finishes its own boot work (disk, network stack, Defender) before we start
+    competing for I/O. The POS is not needed in the first 60 seconds after a
+    power cut; a clean start matters more than a fast one.
+  -->
+  <startmode>Automatic</startmode>
+  <delayedAutoStart/>
+
+  <!--
+    Recovery. Replaces the `autoheal` container, and improves on it: Windows
+    restarts the process itself rather than a sidecar polling a healthcheck.
+    Escalating delay so a genuinely broken install does not spin the disk.
+    resetfailure returns the counter to zero after an hour of stability, so a
+    fault next month is treated as the first failure again.
+  -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <!--
+    mongod logs to stdout (see mongod.cfg) and we roll it here: 10 MB x 5
+    files, mirroring the cap the compose file applied to every container.
+    Unbounded logs are a classic appliance killer over months of uptime.
+  -->
+  <logpath>C:\ProgramData\XP POS\logs\mongodb</logpath>
+  <log mode="roll">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+
+  <!--
+    Give mongod time to flush and close cleanly. A hard kill mid-checkpoint
+    means a journal replay on next boot at best. 90s is comfortably above what
+    a POS-sized dataset needs.
+  -->
+  <stoptimeout>90 sec</stoptimeout>
+  <waithint>120 sec</waithint>
+
+  <priority>Normal</priority>
+</service>

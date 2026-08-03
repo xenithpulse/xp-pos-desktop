@@ -1,0 +1,70 @@
+# C:\ProgramData\XP POS\Caddyfile  (trusted-HTTPS mode — optional, OFF by default)
+#
+# Used when APP_DOMAIN is set (e.g. erp.xenithpulse.com). Caddy obtains a
+# publicly-trusted Let's Encrypt certificate via the DNS-01 challenge, so it
+# works even though the box sits on a private LAN IP and is unreachable from
+# the internet. Browsers and phones trust it with NO per-device setup.
+#
+# ⚠️ REQUIRES A PLUGIN-ENABLED caddy.exe.
+# The DNS-01 challenge needs the caddy-dns provider module compiled IN. Stock
+# caddy.exe from the Caddy releases page does NOT have it, and this file will
+# fail to load with an "unknown directive: dns" style error.
+#
+# Under Docker this was solved by CADDY_VARIANT=plugin, which ran a Go build at
+# deploy time. That is not available natively — the whole point of this
+# migration is that the client box needs no toolchain and no internet. So the
+# plugin-enabled binary must be produced on the BUILD machine with xcaddy:
+#
+#     xcaddy build v2.8.4 --with github.com/caddy-dns/cloudflare
+#
+# See NATIVE_MIGRATION_NOTES.md — which caddy.exe variant ships is an open
+# Phase 5 decision. LAN-by-IP deployments (the overwhelming majority) use
+# Caddyfile.http and need none of this.
+#
+# Requirements in .env:
+#   APP_DOMAIN        the hostname, e.g. erp.xenithpulse.com
+#   ACME_EMAIL        contact email for Let's Encrypt
+#   CADDY_DNS_TOKEN   API token for the DNS provider hosting the domain
+#
+# The `dns` provider name below must match the plugin compiled into the binary
+# (default: cloudflare). Change both together if you use another provider.
+#
+# As with Caddyfile.http, every {$VAR} is resolved into caddy.env by the
+# provisioning script — never point --envfile at .env directly.
+
+{
+	email {$ACME_EMAIL}
+	# Bind the ACME/HTTPS listeners to the configured ports. Natively there is
+	# no Docker port mapping, so Caddy owns the real host ports.
+	# Defaults cover the UNSET case only — a set-but-empty value still wins and
+	# breaks the bind, which is why the generator resolves these into caddy.env.
+	https_port {$POS_HTTPS_PORT:8443}
+	http_port {$POS_HTTP_PORT:8080}
+}
+
+{$APP_DOMAIN} {
+	tls {
+		dns cloudflare {$CADDY_DNS_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+
+	# Device access control — see Caddyfile.http, including the warning about
+	# an empty value locking out the entire LAN.
+	# Ranges are SPACE-separated, not comma-separated.
+	@blocked not remote_ip {$POS_ALLOWED_CIDRS}
+	handle @blocked {
+		respond "Access to this POS is restricted to authorized devices on this network." 403
+	}
+
+	handle {
+		# Everything → the app, realtime (/ws) included. Caddy upgrades wss
+		# automatically; no extra directive needed.
+		reverse_proxy 127.0.0.1:3000 {
+			# Forward the real host/scheme so next-auth (AUTH_TRUST_HOST) rebuilds
+			# its URL from the request — here it resolves to https://{$APP_DOMAIN}
+			# and cookies become Secure automatically.
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+}

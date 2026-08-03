@@ -1,0 +1,122 @@
+{
+  "//": [
+    "Pinned third-party runtimes bundled into the XP POS installer.",
+    "",
+    "Every version here is EXACT and every download is checked against sha256.",
+    "That is the whole point: a client box gets no toolchain and no internet, so",
+    "whatever is captured here is what runs the restaurant. A floating version",
+    "would mean two sites on the same nominal build behaving differently.",
+    "",
+    "To change a version: edit it here, run `build.ps1 -UpdateHashes` to refetch",
+    "and record the new digest, then commit BOTH the version and the hash. Never",
+    "hand-edit a hash.",
+    "",
+    "An empty sha256 means the artifact has not been pinned yet, and build.ps1",
+    "will refuse to use it unless -UpdateHashes is passed."
+  ],
+
+  "node": {
+    "version": "24.18.1",
+    "url": "https://nodejs.org/dist/v24.18.1/node-v24.18.1-win-x64.zip",
+    "sha256": "EC56B84A7551893AB2324EBDFDC4AB974A63B4781162600B68A1293CC3E53765",
+    "//": [
+      "Node 24 Krypton is the current Active LTS - longer support runway than 22",
+      "Jod. Next 16 requires Node 20+, and the env-file flag this install depends",
+      "on for its configuration needs 20.6+.",
+      "",
+      "This digest was cross-checked against the official SHASUMS256.txt at",
+      "https://nodejs.org/dist/v24.18.1/ and matched, so it verifies the upstream",
+      "artifact and not merely whatever we happened to download.",
+      "",
+      "bcrypt and sharp ship N-API prebuilds, which are ABI-stable across Node",
+      "major versions, so the runtime we ship does not have to match the one the",
+      "developer built on. build.ps1 proves this per build by executing bcrypt",
+      "under the bundled node.exe rather than assuming it."
+    ]
+  },
+
+  "mongodb": {
+    "version": "7.0.14",
+    "url": "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.14.zip",
+    "sha256": "59AA714AF531E2B68CE01FA1BE9999435FB9BC2B2002439F3271470113BDF7FE",
+    "//": [
+      "Only mongod.exe is taken. The zip is ~592 MB, but most of the extracted",
+      "content is mongod.pdb and mongos.pdb debug symbols (~1.5 GB together) plus",
+      "mongos.exe, the sharding router, which a single-node replica set never",
+      "uses. The shipped payload is ~61 MB.",
+      "",
+      "SSPL: redistributing this binary in a commercial installer is a licensing",
+      "question the owner has accepted. See NATIVE_MIGRATION_NOTES.md.",
+      "",
+      "AVX: MongoDB 5.0+ requires an AVX-capable CPU. Celeron/Pentium N-series",
+      "(N3350, N4000/N4020, N5030) will die with Illegal instruction. The",
+      "installer must detect this - see Phase 6.",
+      "",
+      "VC++: mongod.exe imports msvcp140.dll and vcruntime140.dll, which are NOT",
+      "guaranteed present on a clean Windows 10. vc_redist.x64.exe is extracted",
+      "from this same zip for the installer to chain."
+    ]
+  },
+
+  "mongoTools": {
+    "version": "100.10.0",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.10.0.zip",
+    "sha256": "B8322D03FFE25C7F0C4B28A1A69345DFFC8840B75020943058D61A9B5A5B076B",
+    "//": [
+      "mongodump.exe and mongorestore.exe. These are a SEPARATE download from the",
+      "server - they have not shipped inside the server archive since 4.4, which",
+      "is easy to miss.",
+      "",
+      "Phase 7 depends on these: the XP Thermal Service currently runs backups via",
+      "docker exec mongodump and must be repointed at these binaries. Backups gate",
+      "go-live, so do not drop them from the payload to save space."
+    ]
+  },
+
+  "mongosh": {
+    "version": "2.3.8",
+    "url": "https://downloads.mongodb.com/compass/mongosh-2.3.8-win32-x64.zip",
+    "sha256": "77EB6A34AE2ED08BC8744230BFD90C139DE42BB895D7E9722912525DF6CF8F70",
+    "//": [
+      "Support tool only. The installer does NOT need it: rs.initiate runs through",
+      "the bundled node.exe and the mongodb driver already inside the app bundle",
+      "(installer/scripts/rs-init.mjs). Shipped so a technician on site can inspect",
+      "the database without downloading anything."
+    ]
+  },
+
+  "caddy": {
+    "version": "2.8.4",
+    "url": "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_windows_amd64.zip",
+    "sha256": "2631FBE1C4F6FB08783ED6DC6AC238D6655B4C923ABE2BCE1433DBD7FD079630",
+    "//": [
+      "Stock release binary, per the owner's decision. This serves every",
+      "LAN-by-IP deployment.",
+      "",
+      "config/Caddyfile.tls (the optional APP_DOMAIN trusted-HTTPS mode) needs a",
+      "caddy built with a caddy-dns provider compiled in and will NOT load on this",
+      "binary. Producing that variant requires Go + xcaddy on the build machine:",
+      "  xcaddy build v2.8.4 --with github.com/caddy-dns/cloudflare"
+    ]
+  },
+
+  "winsw": {
+    "version": "2.12.0",
+    "url": "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe",
+    "sha256": "B5066B7BBDFBA1293E5D15CDA3CAAEA88FBEAB35BD5B38C41C913D492AADFC4F",
+    "//": [
+      "The net461 build (640 KB), not WinSW-x64.exe (17.8 MB, self-contained .NET",
+      "Core). .NET Framework 4.8 ships with Windows 10/11 so net461 adds no",
+      "prerequisite.",
+      "",
+      "v2.12.0 is the latest STABLE release (Jan 2023); v3 is still alpha.",
+      "",
+      "NOT CODE-SIGNED - Get-AuthenticodeSignature reports NotSigned. The brief",
+      "assumed otherwise. Sign the three renamed copies alongside the installer in",
+      "Phase 6 rather than shipping unsigned service wrappers.",
+      "",
+      "WinSW resolves its config by looking for a file named after its own exe, so",
+      "the payload gets three renamed copies of this one binary."
+    ]
+  }
+}

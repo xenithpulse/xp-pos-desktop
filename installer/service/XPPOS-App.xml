@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XPPOS-App — the Next.js standalone server, including the in-process realtime
+  WebSocket server that replaced the Soketi container.
+
+  WinSW v2.12.0 (net461). The wrapper beside this file must be named
+  XPPOS-App.exe. %BASE% is C:\Program Files\XP POS\service.
+-->
+<service>
+  <id>XPPOS-App</id>
+  <name>XP POS Application</name>
+  <description>XP POS application server (Next.js). Serves the POS and the realtime socket on 127.0.0.1:3000.</description>
+
+  <executable>%BASE%\..\node\node.exe</executable>
+
+  <!--
+    ── Why the env-file flag, and why config is NOT beside server.js ─────────
+    (An XML comment may not contain a double hyphen, so the flag is written
+    without its leading dashes throughout this comment. The literal form is in
+    the arguments element below.)
+
+    Next's standalone entrypoint does `process.chdir(__dirname)` and then loads
+    .env from its OWN directory — which is under Program Files. We must not put
+    the live config there: Program Files is ACL-restricted and an upgrade
+    replaces that tree wholesale, so the site's NEXTAUTH_SECRET would be
+    destroyed on every update.
+
+    node's env-file flag loads the ProgramData copy into the process
+    environment before Next starts, and Next's own loader then finds no .env
+    beside server.js and leaves those values alone. The build pipeline
+    (Phase 5) must therefore DELETE .next/standalone/.env, which `next build`
+    copies in from the developer's machine — otherwise every client site would
+    ship with the developer's secret.
+
+    If the file is missing, node exits 9 and the service fails loudly rather
+    than silently starting half-configured. That is deliberate; the failure is
+    recorded in the log below and the recovery actions will retry it.
+  -->
+  <arguments>--env-file="C:\ProgramData\XP POS\.env" server.js</arguments>
+  <workingdirectory>%BASE%\..\app</workingdirectory>
+
+  <!--
+    ── SECURITY: HOSTNAME is load-bearing ───────────────────────────────────
+    The standalone server does `process.env.HOSTNAME || '0.0.0.0'`. Leave it
+    unset and the app binds EVERY interface, so the POS is reachable directly
+    on http://<box-ip>:3000 — bypassing Caddy entirely, and with it the
+    POS_ALLOWED_CIDRS device allow-list that is the site's only access control.
+    Under Docker this was handled by simply not publishing the port. Natively,
+    this line is the equivalent. Caddy is the ONLY component that should be
+    reachable from the LAN.
+  -->
+  <env name="HOSTNAME" value="127.0.0.1"/>
+  <env name="PORT" value="3000"/>
+  <env name="NODE_ENV" value="production"/>
+  <!-- Next's telemetry phones home; an offline appliance should not try. -->
+  <env name="NEXT_TELEMETRY_DISABLED" value="1"/>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart/>
+
+  <!--
+    Start order only, not readiness — mongod may still be recovering when this
+    fires. lib/mongoose.ts uses serverSelectionTimeoutMS 30000 and /login needs
+    no DB, so the app comes up regardless and connects when Mongo is ready.
+  -->
+  <depend>XPPOS-MongoDB</depend>
+
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <logpath>C:\ProgramData\XP POS\logs\app</logpath>
+  <log mode="roll">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+
+  <!--
+    Node ignores Windows' console-close signal in some configurations, so give
+    the wrapper room to escalate to a terminate rather than having Windows mark
+    the service as hung during a restart.
+  -->
+  <stoptimeout>30 sec</stoptimeout>
+  <waithint>60 sec</waithint>
+
+  <priority>Normal</priority>
+</service>

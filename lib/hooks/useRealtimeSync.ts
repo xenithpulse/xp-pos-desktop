@@ -1,29 +1,37 @@
 // lib/hooks/useRealtimeSync.ts
 // Real-time synchronisation hook.
-//  • Primary channel: Pusher (push from server)
-//  • Fallback: Throttled polling when Pusher is unavailable or disconnects
+//  • Primary channel: the in-process WebSocket server (push from server)
+//  • Fallback: Throttled polling when the socket is unavailable or drops
 //  • Event dedup: ignores events already seen within a sliding window
 //  • Reconnect catch-up: fires a full refresh after reconnecting so nothing
 //    is missed while the socket was down.
+//
+// The public contract is unchanged from the Pusher implementation this
+// replaced: same options in, same { status, reconnect } out. Reconnection and
+// backoff now live in lib/realtime/wsClient.ts (pusher-js used to provide
+// them); this hook only reacts to the status it reports.
 
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeEvent, RealtimeEventType } from '@/lib/realtime/types';
-import type PusherClient from 'pusher-js';
-import type { Channel } from 'pusher-js';
-import { getRealtimeKey, getRealtimeOptions } from '@/lib/realtime/clientOptions';
+import {
+  subscribeRealtime,
+  reconnectRealtime,
+  type RealtimeMessage,
+  type RealtimeStatus,
+} from '@/lib/realtime/wsClient';
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
 interface UseRealtimeSyncOptions {
-  /** Polling interval in ms when Pusher is unavailable (default: 10_000) */
+  /** Polling interval in ms when the socket is unavailable (default: 10_000) */
   pollingInterval?: number;
   /** Which event types this consumer cares about */
   eventFilter?: RealtimeEventType[];
   /** Called whenever a matching event arrives */
   onEvent?: (event: RealtimeEvent) => void;
-  /** If true, don't start Pusher at all */
+  /** If true, don't open the socket at all */
   disabled?: boolean;
 }
 
@@ -38,8 +46,6 @@ const ALL_EVENTS: RealtimeEventType[] = [
   'menu:category_created', 'menu:category_updated',
   'settings:updated',
 ];
-
-const PUSHER_CHANNEL = 'xp-pos';
 
 /** Sliding window (ms) for event dedup — ignore events with same entityId+type within this window */
 const DEDUP_WINDOW_MS = 500;
@@ -60,10 +66,7 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onEventRef = useRef(onEvent);
   const filterRef = useRef(eventFilter);
-  const pusherRef = useRef<PusherClient | null>(null);
-  const channelRef = useRef<Channel | null>(null);
   const mountedRef = useRef(true);
-  const connectingRef = useRef(false); // Guard against double-init
 
   // Event dedup map: key → timestamp of last seen
   const dedupMap = useRef<Map<string, number>>(new Map());
@@ -100,7 +103,6 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
   const startPolling = useCallback(() => {
     if (pollingRef.current || !mountedRef.current) return;
 
-    setStatus('polling');
     pollingRef.current = setInterval(() => {
       if (!mountedRef.current) return;
       onEventRef.current?.({
@@ -119,79 +121,39 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
     }
   }, []);
 
-  // ── Cleanup helper ───────────────────────────────────────────────────────
+  // ── Socket subscription ──────────────────────────────────────────────────
 
-  const cleanup = useCallback(() => {
-    if (channelRef.current) {
-      channelRef.current.unbind_all();
-      channelRef.current = null;
-    }
-    if (pusherRef.current) {
-      pusherRef.current.disconnect();
-      pusherRef.current = null;
-    }
-    stopPolling();
-    connectingRef.current = false;
-  }, [stopPolling]);
-
-  // ── Pusher Connection ────────────────────────────────────────────────────
-
-  const connectPusher = useCallback(() => {
-    if (disabled || typeof window === 'undefined' || !mountedRef.current) return;
-    if (connectingRef.current) return; // Already connecting — prevent double-init
-    connectingRef.current = true;
-
-    const key = getRealtimeKey();
-    const connectionOptions = getRealtimeOptions();
-
-    if (!key || !connectionOptions) {
-      console.warn('[Realtime] NEXT_PUBLIC_PUSHER_KEY missing, using sync polling');
-      connectingRef.current = false;
-      startPolling();
+  useEffect(() => {
+    if (disabled) {
+      setStatus('disconnected');
       return;
     }
 
-    setStatus('connecting');
-
-    import('pusher-js').then((mod) => {
+    const handleMessage = (message: RealtimeMessage) => {
       if (!mountedRef.current) return;
-      const PusherConstructor = mod.default;
 
-      // Cleanup previous instance
-      if (pusherRef.current) {
-        pusherRef.current.disconnect();
-      }
+      // Only POS events reach the consumer. Anything else on the socket —
+      // e.g. the per-user daily-sheet message — carries a `type` outside this
+      // union and is ignored here, which mirrors how the Pusher version bound
+      // only the event names it cared about.
+      const allowed = filterRef.current ?? ALL_EVENTS;
+      if (!allowed.includes(message.type as RealtimeEventType)) return;
 
-      // Options resolve to local Soketi (same-origin via Caddy, or explicit
-      // host) or cloud Pusher depending on env — see lib/realtime/clientOptions.
-      // pusher-js handles reconnection with back-off internally.
-      const client = new PusherConstructor(key, connectionOptions);
-      pusherRef.current = client;
+      const event = message as RealtimeEvent;
+      if (isDuplicate(event)) return;
+      onEventRef.current?.(event);
+    };
 
-      const channel = client.subscribe(PUSHER_CHANNEL);
-      channelRef.current = channel;
+    const handleStatus = (next: RealtimeStatus) => {
+      if (!mountedRef.current) return;
 
-      // Bind events with dedup
-      const eventsToListen = filterRef.current ?? ALL_EVENTS;
-      for (const eventType of eventsToListen) {
-        channel.bind(eventType, (data: RealtimeEvent) => {
-          if (!mountedRef.current) return;
-          if (isDuplicate(data)) return;
-          onEventRef.current?.(data);
-        });
-      }
-
-      // ── Connection state management ────────────────────────────────────
-
-      client.connection.bind('connected', () => {
-        if (!mountedRef.current) return;
+      if (next === 'connected') {
+        // Catch-up: if we were polling, we may have missed events while the
+        // socket was down — fire a synthetic poll so the consumer refreshes
+        // everything. The hub depends on this to resync its floor plan.
         const wasPolling = pollingRef.current !== null;
-        setStatus('connected');
         stopPolling();
-        connectingRef.current = false;
-
-        // Catch-up: if we were polling or reconnecting, we may have missed
-        // events — fire a synthetic poll so the consumer refreshes everything.
+        setStatus('connected');
         if (wasPolling) {
           onEventRef.current?.({
             type: 'table:updated',
@@ -200,56 +162,28 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
             timestamp: Date.now(),
           });
         }
-      });
+        return;
+      }
 
-      client.connection.bind('disconnected', () => {
-        if (!mountedRef.current) return;
-        setStatus('polling');
-        connectingRef.current = false;
-        startPolling();
-      });
+      setStatus(next);
+      if (next === 'polling' || next === 'disconnected') startPolling();
+    };
 
-      client.connection.bind('failed', () => {
-        if (!mountedRef.current) return;
-        setStatus('polling');
-        connectingRef.current = false;
-        startPolling();
-      });
-
-      client.connection.bind('unavailable', () => {
-        if (!mountedRef.current) return;
-        setStatus('polling');
-        connectingRef.current = false;
-        startPolling();
-      });
-
-    }).catch(() => {
-      if (!mountedRef.current) return;
-      console.warn('[Realtime] Failed to load pusher-js, using sync polling');
-      connectingRef.current = false;
-      startPolling();
-    });
-  }, [disabled, startPolling, stopPolling, isDuplicate]);
-
-  // ── Lifecycle ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (disabled) return;
-
-    connectPusher();
+    const unsubscribe = subscribeRealtime(handleMessage, handleStatus);
 
     return () => {
-      cleanup();
+      unsubscribe();
+      stopPolling();
       setStatus('disconnected');
     };
-  }, [connectPusher, disabled, cleanup]);
+  }, [disabled, isDuplicate, startPolling, stopPolling]);
 
   // ── Manual trigger ──────────────────────────────────────────────────────
 
   const reconnect = useCallback(() => {
-    cleanup();
-    connectPusher();
-  }, [connectPusher, cleanup]);
+    stopPolling();
+    reconnectRealtime();
+  }, [stopPolling]);
 
   return { status, reconnect };
 }

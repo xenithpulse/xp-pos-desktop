@@ -23,17 +23,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Client-inlined public config (baked into the browser bundle).
-ARG NEXT_PUBLIC_PUSHER_KEY=""
-ARG NEXT_PUBLIC_PUSHER_HOST=""
-ARG NEXT_PUBLIC_PUSHER_PORT="6001"
-ARG NEXT_PUBLIC_PUSHER_CLUSTER=""
+# The four NEXT_PUBLIC_PUSHER_* args that used to live here are gone: realtime
+# now runs in-process and the browser derives the socket address from
+# window.location, so nothing site-specific is compiled in any more.
 ARG NEXT_PUBLIC_BASE_URL=""
 ARG NEXT_PUBLIC_HALL_CHARGES_NAME="Hall Charges"
-ENV NEXT_PUBLIC_PUSHER_KEY=$NEXT_PUBLIC_PUSHER_KEY \
-    NEXT_PUBLIC_PUSHER_HOST=$NEXT_PUBLIC_PUSHER_HOST \
-    NEXT_PUBLIC_PUSHER_PORT=$NEXT_PUBLIC_PUSHER_PORT \
-    NEXT_PUBLIC_PUSHER_CLUSTER=$NEXT_PUBLIC_PUSHER_CLUSTER \
-    NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL \
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL \
     NEXT_PUBLIC_HALL_CHARGES_NAME=$NEXT_PUBLIC_HALL_CHARGES_NAME
 
 # Placeholder server-only vars so module-load checks (lib/mongoose.ts) pass
