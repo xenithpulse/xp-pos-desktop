@@ -130,7 +130,20 @@
       "Read(//c/Users/DELL/.xenithpulse/**)",
       "PowerShell(reg query \"HKLM\\\\SOFTWARE\\\\XenithPulse\\\\XP POS\" 2>&1)",
       "Bash(curl -s --max-time 45 -w '\\\\nHTTP %{http_code}\\\\n' -o 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\3feba2d2-36df-47c9-bef9-cf291a1a77ab\\\\scratchpad/m2.json' https://updates.xenithpulse.com/manifest.json)",
-      "Bash(curl -sI --max-time 45 https://updates.xenithpulse.com/releases/XP-POS-Setup-0.2.0.exe)"
+      "Bash(curl -sI --max-time 45 https://updates.xenithpulse.com/releases/XP-POS-Setup-0.2.0.exe)",
+      "Bash(node tools/licensing/vectors.mjs --print)",
+      "Bash(node tools/licensing/vectors.mjs)",
+      "Bash(mkdir -p \"E:/Xenith_Main/erp/lib/licensing\")",
+      "Bash(cp tools/licensing/lib/codec.mjs \"E:/Xenith_Main/erp/lib/licensing/codec.mjs\")",
+      "Bash(cp tools/licensing/vectors.mjs \"E:/Xenith_Main/erp/lib/licensing/vectors.mjs\")",
+      "Bash(sed -i 's|from \"./lib/codec.mjs\"|from \"./codec.mjs\"|' \"E:/Xenith_Main/erp/lib/licensing/vectors.mjs\")",
+      "Bash(node lib/licensing/vectors.mjs)",
+      "Bash(node tools/licensing/cross-check-erp.mjs)",
+      "Bash(node tools/licensing/protect-key.mjs)",
+      "Bash(sed -i 's|^import { createCipheriv, randomBytes, scryptSync, createPrivateKey } from \"node:crypto\";|import { createPrivateKey } from \"node:crypto\";|' tools/licensing/cross-check-erp.mjs)",
+      "Bash(node --check tools/licensing/cross-check-erp.mjs)",
+      "Bash(sed -i '32d' tools/licensing/cross-check-erp.mjs)",
+      "Bash(sed -i 's|^import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|import { existsSync, mkdirSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|' tools/licensing/cross-check-erp.mjs)"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",
@@ -146,7 +159,14 @@
       "E:\\Xenith_Main\\xp-enterprise\\app\\api\\pos\\entitlements",
       "E:\\Xenith_Main\\xp-enterprise\\app\\api\\pos\\link-site",
       "E:\\Xenith_Main\\xp-enterprise\\app\\connect-pos",
-      "E:\\Xenith_Main\\xp-enterprise"
+      "E:\\Xenith_Main\\xp-enterprise",
+      "E:\\Xenith_Main\\erp\\lib\\licensing",
+      "E:\\Xenith_Main\\erp\\models\\schemas",
+      "E:\\Xenith_Main\\erp\\models\\factories",
+      "E:\\Xenith_Main\\erp\\app\\api\\licenses\\issue",
+      "E:\\Xenith_Main\\erp\\app\\api\\licenses",
+      "E:\\Xenith_Main\\erp\\features\\Licenses",
+      "E:\\Xenith_Main\\erp\\app\\(pages)\\licenses"
     ]
   }
 }

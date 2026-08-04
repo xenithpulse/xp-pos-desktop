@@ -2,20 +2,31 @@
 //
 // The licence wire format, XenithPulse side.
 //
-// ── THIS IS A MIRROR ────────────────────────────────────────────────────────
+// ── THIS IS A MIRROR, AND THERE ARE NOW THREE ───────────────────────────────
 //
-// lib/licensing/format.ts in the product is the other half of this file, and
-// the two MUST agree byte for byte. They are separate because the product half
-// is TypeScript compiled by Next into the customer's bundle, and this half runs
-// under plain `node` on the issuing machine with no build step and no
+//   1. lib/licensing/format.ts        compiled into the POS by Next
+//   2. tools/licensing/lib/codec.mjs  this file - bare node, issuing machine
+//   3. erp lib/licensing/codec.mjs    the XenithPulse ERP issuing page
+//
+// All three MUST agree byte for byte. They are separate because the product
+// half is TypeScript compiled by Next into the customer's bundle, this half
+// runs under plain `node` on the issuing machine with no build step and no
 // dependencies - a licence has to be issuable from a laptop with nothing
-// installed.
+// installed - and the ERP is a third deployment on its own release cycle.
+//
+// (3) is a VERBATIM COPY of this file, kept byte-identical on purpose so that
+// `fc` / `diff` is itself the drift check. Do not "tidy" it on arrival, do not
+// add an ERP-specific header, do not convert it to TypeScript. If it needs to
+// change, change THIS file and copy it across again.
 //
 // If you change the payload layout, the signing context, the alphabet or
-// FORMAT_VERSION here, change it there in the same commit. `node
+// FORMAT_VERSION here, change it everywhere in the same commit. `node
 // tools/licensing/issue.mjs --selftest` round-trips a key through both halves
 // of THIS file, which catches a self-inconsistent edit but cannot catch a
-// divergence from the product. Read the header of lib/licensing/format.ts.
+// divergence from the product. `node tools/licensing/vectors.mjs` pins the
+// format itself against frozen expectations and DOES catch that - it is what
+// the ERP calls before it is allowed to issue anything. Read the header of
+// lib/licensing/format.ts.
 //
 // NOTHING IN THIS DIRECTORY IS SHIPPED. installer/build.ps1 stages
 // installer/scripts and the Next standalone bundle; tools/ is not part of

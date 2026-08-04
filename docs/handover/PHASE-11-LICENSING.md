@@ -218,11 +218,99 @@ machine code *is* the fingerprint.
 Activation **refuses** a key it cannot fully accept rather than writing a broken
 licence file for the technician to discover after they have driven away.
 
-## Decided 2026-08-05: moving to a pre-signed key pool ("Model B")
+## BUILT 2026-08-05: issuing from the XenithPulse ERP (Model A)
 
-**Not built yet. This is the agreed direction, written down before anyone
-starts, because it changes the wire format and that is not a thing to
-improvise.**
+Licences can now be issued from the ERP: paste the machine code, get the key.
+`E:\Xenith_Main\erp`, page at `/licenses`.
+
+| Piece | Where |
+|---|---|
+| Licence minting | `lib/licensing/signer.ts` |
+| Wire format | `lib/licensing/codec.mjs` — **verbatim copy**, see below |
+| Format vectors | `lib/licensing/vectors.mjs` |
+| Issue endpoint | `app/api/licenses/issue/route.ts` — **super_admin only** |
+| Ledger | `app/api/licenses/route.ts`, `models/schemas/licenseKey.schema.ts` |
+| UI | `features/Licenses/index.tsx` |
+
+**The signing key is on the ERP, and the ERP is public and internet-facing.**
+That was chosen deliberately over the alternatives, with the exposure
+understood: a compromise there can mint unlimited valid licences for every box
+ever shipped, and an offline product cannot revoke them. Rotating the key is
+not an escape — it drops the whole fleet into a 14-day grace period.
+
+What limits the damage, and what does not:
+
+- The key is stored **encrypted** (AES-256-GCM, scrypt) in
+  `LICENCE_SIGNING_KEY_ENC`. Produce it with `node
+  tools/licensing/protect-key.mjs`.
+- **The passphrase is never stored on the server** — not in an env var, not in
+  the database, not cached between requests. The operator types it on every
+  issue. That separation is the entire protection: a leaked environment, a
+  database dump, a stale container image or a screenshot of the env panel all
+  leak ciphertext and nothing else.
+- It does **not** stop an attacker with code execution on the ERP at the moment
+  somebody issues a licence. Nothing can, while the server is the thing
+  signing. That is the accepted cost.
+
+If anyone ever "helpfully" caches the passphrase to save typing, this design is
+gone and the key may as well be stored in plaintext.
+
+### Three copies of the wire format now exist
+
+`lib/licensing/format.ts` (product), `tools/licensing/lib/codec.mjs` (CLI), and
+the ERP's `lib/licensing/codec.mjs`. The third is a **byte-identical copy** of
+the second, on purpose — `diff` between them is itself the drift check. Do not
+tidy it, do not add a header, do not port it to TypeScript. Types live beside it
+in `codec.d.ts` precisely so the copy can stay identical.
+
+Drift here does not fail at issue time. The ERP prints a perfect-looking key and
+the **customer** discovers it days later, offline, with a technician on site. So:
+
+- `node tools/licensing/vectors.mjs` pins the format against frozen expectations
+  (deterministic Ed25519 output for fixed inputs). `signer.ts` calls this
+  **before every issue** and refuses to mint if it fails.
+- `node tools/licensing/cross-check-erp.mjs` closes the loop across both repos:
+  it mints with the ERP's code and verifies with the **product's** compiled
+  `format.ts` and real public key. Run it after touching anything in
+  `lib/licensing`, `tools/licensing`, or the ERP's `lib/licensing`.
+  **Verified passing 2026-08-05**, dated and perpetual, both editions, with the
+  wrong-passphrase / mistyped-code / too-few-signals refusals all still
+  refusing.
+
+  It runs the real `protect-key.mjs` as a subprocess rather than reimplementing
+  the wrapping. That is not incidental: the first version inlined the
+  scrypt/AES calls, agreed with itself, and **missed a live bug** —
+  `protect-key.mjs` was calling `scryptSync` without `maxmem`, so the tool an
+  operator actually runs died with `ERR_CRYPTO_INVALID_SCRYPT_PARAMS` while the
+  test passed. If you extend this harness, drive the real entry points.
+
+### Gotchas already paid for in `protect-key.mjs`
+
+Three bugs found by running it rather than reading it, all now fixed and
+commented in place. Worth knowing before touching that file:
+
+- **`maxmem` is required.** Node's scrypt default is 32 MB; `N=2^15` needs
+  slightly more. Present in `signer.ts`, missing here — the two must agree on
+  `N`, `r`, `p` or blobs become undecryptable, and the symptom is the useless
+  "that passphrase did not unlock the signing key".
+- **One readline interface, read through its async iterator.** A fresh
+  interface per prompt, or `rl.question()`, drops the second answer when stdin
+  is a pipe — readline emits all buffered lines before the next callback
+  registers. That only shows up in a test, which is exactly when you need it to
+  work.
+- **It verifies its own blob before printing it**, decrypting back and
+  comparing to the PEM. Same principle as `issue.mjs` verifying a licence
+  before handing it over.
+
+Do not regenerate vectors to clear a failure. Read the note at the top of
+`vectors.mjs`.
+
+## Still worth doing later: a pre-signed key pool ("Model B")
+
+**Not built. Superseded for now by the ERP issuing above**, which solves the
+immediate problem. Kept because it remains the better answer at volume, and
+because it is the only version that lets a key be sold before the machine
+exists.
 
 ### Why
 
