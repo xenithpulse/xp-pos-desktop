@@ -106,7 +106,10 @@
       "Bash(f=\"C:/Users/DELL/AppData/Local/Temp/claude/e--XP-POS-DESK/473ff6e3-d27a-4ae0-95ea-1f1133100dab/tasks/blbnw0jc3.output\" *)",
       "Bash(curl -sS -D - \"https://updates.xenithpulse.com/manifest.json\" -o /tmp/manifest_probe.txt -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\")",
       "Bash(xxd)",
-      "Bash(curl -sS \"https://updates.xenithpulse.com/manifest.json?cb=$\\(date +%s\\)\" -o /tmp/manifest_after.txt)"
+      "Bash(curl -sS \"https://updates.xenithpulse.com/manifest.json?cb=$\\(date +%s\\)\" -o /tmp/manifest_after.txt)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(Object.keys\\(p.dependencies\\).filter\\(d=>/intl|i18n|locale/i.test\\(d\\)\\)\\)\")",
+      "Bash(grep -n \"href=\\\\\"/\\\\|label:\\\\|title:\" components/layout/Sidebar.tsx)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('name:',p.name\\); console.log\\('version:',p.version\\); console.log\\('scripts:',JSON.stringify\\(p.scripts,null,2\\)\\)\")"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",

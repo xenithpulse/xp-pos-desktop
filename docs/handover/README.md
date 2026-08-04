@@ -49,6 +49,8 @@ Do them in numbered order. The numbering **is** the execution order.
 | [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
 | [`RESILIENCE-AND-QA.md`](RESILIENCE-AND-QA.md) | Self-healing services, watchdog, and the per-device QA check | medium | **built — `-Destructive` and reboot tests still to run on a real box** |
 | [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons and wizard imagery, plus the whole first-run path: bootstrap, sample data, and finding the box on the network | large | **built — needs the on-box walkthrough; contact details and the EULA still placeholders** |
+| [`PHASE-13-SELL-READY-GAPS.md`](PHASE-13-SELL-READY-GAPS.md) | Delivery order module, a standalone kitchen screen, wiring up the unused WhatsApp sender — found by a persona audit (owner, cashier, kitchen), not by brainstorming | medium | not started |
+| [`PHASE-14-REGIONAL-READINESS.md`](PHASE-14-REGIONAL-READINESS.md) | South Asia (excl. India) / Middle East / Western market readiness: Saudi e-invoicing scoping, allergen UI, optional bilingual receipts | medium | not started |
 
 **Why this order:**
 
@@ -81,6 +83,16 @@ Do them in numbered order. The numbering **is** the execution order.
   eleven `/api/injections/*` routes never called their own guard, and that the
   address a customer needs was printed only into a hidden console. Phase 12 now
   also covers the path from double-clicking the installer to taking an order.
+- **13 before 14** because 13 is gaps that cost a sale to *any* single
+  restaurant owner, anywhere — most notably that delivery orders cannot be
+  created at all despite the data model already supporting them end to end.
+  14 is market-specific hardening (Saudi e-invoicing, GCC receipt
+  conventions) that only matters once you're selling into those specific
+  places. Chain/multi-location support ("online data flush" — each site
+  queues locally, flushes to a central database when internet returns) is
+  deliberately sketched in Phase 14 but not started: this product sells to
+  single restaurant owners right now, and there is no paying multi-location
+  customer to build it for yet.
 
 **One thing from Phase 11 is not a code task and has no deadline but the first
 sale:** the licence signing key exists only at
