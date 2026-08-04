@@ -89,6 +89,40 @@ export default function UpdateManager() {
     return () => clearInterval(t);
   }, [load]);
 
+  // Check when the screen is opened, rather than only rendering whatever the
+  // agent's six-hourly poll last found. Somebody opening this tab is asking
+  // "is there an update?", and answering from a state that may be six hours
+  // old reads as a confident "no" when the truthful answer is "nobody has
+  // looked recently". The owner of a restaurant should not have to know that
+  // "Check for updates" is the button that makes the answer true.
+  //
+  // Deliberately silent - no spinner, no message, no error. The cached state
+  // is already on screen by the time this returns, and every outcome it could
+  // report is already covered calmly below: an offline box renders "no
+  // internet", a rejected payload renders in red. Surfacing a second, louder
+  // copy of that here would undo the point of the three calm states.
+  //
+  // Cost: on a box where a new version exists, this pulls the ~120 MB payload
+  // once - the same fetch the agent would have made within six hours anyway,
+  // just sooner, and skipped entirely once a verified copy is on disk. The
+  // endpoint rate-limits to one check a minute and answers 429 otherwise,
+  // which is what makes a reopened tab (and React's double-mount in
+  // development) harmless rather than a second download.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await fetch("/api/admin/server-config/updates/check", { method: "POST" });
+      } catch {
+        return; // Offline. The status endpoint already reports that calmly.
+      }
+      if (!cancelled) load();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
   const checkNow = async () => {
     setBusy("check");
     setMessage(null);

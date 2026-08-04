@@ -2,11 +2,44 @@
 
 A restaurant point-of-sale system that runs entirely on a computer in the
 restaurant — no cloud, no internet dependency, no monthly per-terminal fee to a
-third party. Floor plan and table sessions, order-taking and a kitchen ticket
-board, menu and inventory, staff accounts, daily and analytics reporting, and a
-30-day trial with offline licence activation.
+third party. Every till, waiter tablet and kitchen screen on the premises talks
+to one machine over the LAN; the internet can go down mid-service and the
+restaurant keeps taking orders.
 
 Built by **XenithPulse**.
+
+## What the product does
+
+- **Order-taking across three flows** — dine-in with a floor plan and table
+  sessions, takeaway, and delivery (customer + address capture, delivery fee,
+  rider name, status tracked through preparing → out-for-delivery →
+  delivered).
+- **Kitchen ticket board and a standalone kitchen display.** Orders fire to
+  the kitchen from the order editor; `/kitchen` is a separate full-screen
+  route with no admin chrome, filterable by station, meant to run on its own
+  screen rather than share one with the POS.
+- **Recipe-aware inventory.** Menu items are built from ingredients
+  (`models/schemas/ingredient.schema.ts`), and selling one deducts the
+  ingredients it's made from automatically (`lib/inventory.ts`) — stock
+  reflects what was actually used, not what was rung up as a line item.
+  Inventory analytics on top of that.
+- **WhatsApp order confirmations.** Sent automatically the moment an order is
+  first fired to the kitchen, to takeaway/delivery customers with a phone
+  number on file — gated behind an active subscription, inside Meta's 24h
+  customer-initiated messaging window.
+- **Native thermal printing** to receipt/kitchen printers, no third-party
+  print spooler.
+- **Staff accounts and roles**, cash slips, vouchers, daily and monthly
+  sheets, customer records, bill adjustments, and analytics reporting.
+- **Server Management dashboard** — the operational surface for the box
+  itself: update status, diagnostics (services, listeners, logs), and (once
+  Phase 11 ships fully) licence state. Public by design as a recovery
+  surface; the handful of actions that touch a running till (installing an
+  update, reading a raw log) require an admin session.
+- **A 30-day trial with offline licence activation**, and remote updates —
+  the installed box polls outward over HTTPS for a signed, hash-verified
+  update; nothing binds a listener, nothing calls home with telemetry. See
+  `docs/handover/PHASE-10-REMOTE-UPDATE.md` and `PHASE-11-LICENSING.md`.
 
 ## What this actually is
 

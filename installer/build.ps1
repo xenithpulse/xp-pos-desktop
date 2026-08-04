@@ -827,10 +827,31 @@ Assert-Payload "env.template ships with auto-install OFF" `
     ($tpl -notmatch '(?mi)^\s*POS_UPDATE_AUTO_INSTALL\s*=\s*true\s*$')
 Assert-Payload "env.template ships requiring a verified signature" `
     ($tpl -notmatch '(?mi)^\s*POS_UPDATE_ALLOW_UNSIGNED\s*=\s*true\s*$')
-# A URL baked into the template would point every new install at whatever host
-# happened to be in the developer's working copy.
-Assert-Payload "env.template ships with no update URL set" `
-    ($tpl -match '(?m)^\s*POS_UPDATE_URL\s*=\s*$')
+# The update URL must be BLANK or the one official manifest - never anything
+# else. This assertion used to require blank outright, to stop a build shipping
+# whatever host happened to be in the developer's working copy. That risk is
+# unchanged and this still catches it; what changed is that a real, permanent,
+# XenithPulse-controlled manifest now exists, and defaulting to it is what makes
+# a box updatable without asking its owner to edit a config file.
+#
+# It is deliberately an EXACT match rather than a pattern. "Starts with https"
+# would pass a staging host, a typo'd domain, and an attacker-controlled
+# lookalike; those are precisely the cases worth failing a release over, since
+# this one line decides where every new install fetches code to run as
+# Administrator.
+#
+# [ \t] rather than \s around the '=' is load-bearing, not fussiness. In .NET
+# \s matches a NEWLINE, so '\s*=\s*(.*)$' on a blank value runs straight past
+# the line break and captures the NEXT line - this assertion was written with
+# \s first and duly reported the template's update URL as "POS_UPDATE_CHANNEL
+# =stable". It would have passed a build with a hostile URL set, as long as the
+# line after it happened to look innocent.
+$officialManifest = 'https://updates.xenithpulse.com/manifest.json'
+$updateUrlLine = [regex]::Match($tpl, '(?m)^[ \t]*POS_UPDATE_URL[ \t]*=[ \t]*(.*)$')
+Assert-Payload "env.template update URL is blank or the official manifest" `
+    ($updateUrlLine.Success -and
+     ($updateUrlLine.Groups[1].Value.Trim() -eq '' -or
+      $updateUrlLine.Groups[1].Value.Trim() -eq $officialManifest))
 
 # ── Licensing (Phase 11) ─────────────────────────────────────────────────────
 #

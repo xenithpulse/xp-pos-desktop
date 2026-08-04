@@ -413,6 +413,86 @@ automatically:
    that merge only adds keys that are entirely absent, never overwrites one a
    site already has.
 
+## Release log and the rule that now governs it (2026-08-05)
+
+**Live on `stable`: 0.2.0**, unsigned.
+`https://updates.xenithpulse.com/manifest.json`
+
+| Version | Published | Signed | Notes |
+|---|---|---|---|
+| 0.1.0 | 2026-08-04 | no | First public build |
+| 0.2.0 | 2026-08-05 | no | Phase 13: delivery orders, kitchen screen, WhatsApp confirmations |
+
+**One channel, `stable`. There is deliberately no `beta`.** A second channel
+is a second thing to publish to, reason about and get wrong, and the install
+base does not justify it.
+
+### `POS_UPDATE_URL` now ships pointing at the real manifest
+
+`.env.example` previously shipped blank, which meant every install was a box
+that would never be updated again unless somebody edited a config file on
+site. It now defaults to the official manifest, and the build assertion that
+used to require blank now requires **blank or exactly that one URL** — an
+exact match, not a pattern, because "starts with https" would happily pass a
+typo'd domain or a lookalike, and this single line decides where every install
+fetches code it will run as Administrator.
+
+Two consequences to hold on to:
+
+- **Sites installed before this do not pick it up.** `provision.ps1` only adds
+  keys that are entirely *absent*, and those `.env` files have the key present
+  and blank — a deliberate blank, not a missing setting. Enabling updates
+  there is a manual edit. That includes anything installed from the 0.2.0
+  download, which was built before this change.
+- **Publishing to `stable` now reaches every new box automatically.** Which
+  leads directly to:
+
+> ### Never publish an unsigned build to `stable`
+>
+> A box fetches it, refuses it (`POS_UPDATE_ALLOW_UNSIGNED=false` ships as the
+> default), and shows its owner a warning about an update they have no way to
+> act on. 0.1.0 and 0.2.0 went out unsigned only because the install base was
+> zero and nothing pointed at the manifest yet. That window is closed.
+
+**Decided 2026-08-05: wait for the Phase 9 certificate rather than shipping
+updates unsigned.** Signing the manifest with our own Ed25519 key was
+considered — it would close the real threat without a CA, and it is what
+Sparkle and Tauri's updater do — and was **rejected for now** on the grounds
+that it is new code in the highest-risk path in the product. The certificate
+is therefore the single blocker on the entire update channel. Nothing ships
+through it until that is bought.
+
+### The verification step can fail on a good release
+
+`build.ps1 -Publish` exits **non-zero** if its final check — fetching the
+manifest and HEADing the `.exe` back through the public domain — times out.
+That happened on the 0.2.0 publish. Both uploads had already succeeded and the
+release was live and correct; the fetch-back simply timed out.
+
+So a failed publish is not automatically a bad release. Check by hand before
+re-running anything:
+
+```powershell
+curl.exe -s https://updates.xenithpulse.com/manifest.json
+curl.exe -sI https://updates.xenithpulse.com/releases/XP-POS-Setup-<version>.exe
+```
+
+Compare **version, sizeBytes and sha256** against what the build printed. If
+they match, the release is good and the only thing that failed was the check.
+Re-running `-Publish` for that version will refuse ("already published") and
+would need `-PublishForce` — which is the right behaviour, and the reason to
+verify before reaching for it.
+
+### The Updates tab checks when it is opened
+
+`UpdateManager.tsx` fires the check endpoint on mount, not just on the agent's
+six-hourly timer. Somebody opening that screen is asking "is there an update?"
+and a cached answer up to six hours old reads as a confident "no". It is
+silent — no spinner, no error — because every outcome it could report is
+already covered by the calm states, and the endpoint's 1/min rate limit is
+what makes a reopened tab harmless. On a box where a newer version exists this
+pulls the payload once, the same fetch the agent would have made anyway.
+
 ## Before the first real update ships
 
 1. **Buy the Phase 9 certificate.** `POS_UPDATE_ALLOW_UNSIGNED` exists only to

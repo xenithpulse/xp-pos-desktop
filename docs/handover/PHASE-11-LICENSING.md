@@ -218,6 +218,91 @@ machine code *is* the fingerprint.
 Activation **refuses** a key it cannot fully accept rather than writing a broken
 licence file for the technician to discover after they have driven away.
 
+## Decided 2026-08-05: moving to a pre-signed key pool ("Model B")
+
+**Not built yet. This is the agreed direction, written down before anyone
+starts, because it changes the wire format and that is not a thing to
+improvise.**
+
+### Why
+
+The flow above needs the machine code *before* a key can exist. That is two
+round trips with a restaurant owner, and it makes a licence impossible to
+sell in advance — no emailing a key on payment, no card in a box. The ask was
+"why can't it work like a Windows product key", and the honest answer is that
+it can, once you see what Microsoft actually does: their key is **not** bound
+to your PC when it is printed. Their *server* binds it at activation and
+remembers it was used.
+
+### The shape
+
+Keys are generated in batches **offline**, signed, and **not machine-bound**:
+
+```
+node tools/licensing/mint-pool.mjs --count 100 --days 365 --out pool.csv
+```
+
+The ERP stores that CSV as inventory — `unsold → sold → activated` against a
+Client. The customer types the key; the box verifies the signature offline
+and licenses itself. No machine code, no round trip, works with the internet
+unplugged exactly as today.
+
+**The private key never touches the ERP.** That is the whole point of minting
+offline in batches, and it is not negotiable now that the ERP is confirmed
+public and internet-facing. An ERP that could sign on demand is an ERP whose
+compromise mints unlimited valid licences for every box ever shipped — with
+no revocation, because the product is offline by design.
+
+### What this gives up, stated plainly
+
+Today a copied `license.dat` is **refused** — the signature is over the
+fingerprint, so it simply does not validate elsewhere. An unbound key
+**cannot** have that property: anything the box can verify with no network is
+something it will verify on any box.
+
+So the anti-copy guarantee weakens from *prevented* to *detected*. When a box
+has internet it reports `{serial, siteId, activatedAt}`; the ERP flags a
+serial seen under two different siteIds and you handle it commercially. A box
+that never connects is never seen — accepted, because this is failure mode 4
+and it ranks below every other one in the list at the top of this document.
+
+If that trade ever looks wrong, Model A above is still the stronger scheme and
+nothing here deletes it. **Keep both.** An unbound pool key is the retail
+path; a machine-bound key stays the right answer for a site that needs the
+hard guarantee, and for re-issuing against replaced hardware.
+
+### Wire format — the part to get right
+
+Read "Watch out for" at the end of this document first. The rule stands: change
+`lib/licensing/format.ts` **and** `tools/licensing/lib/codec.mjs` in the same
+commit, and keep the decoder able to read every value already issued.
+
+Add an **unbound variant**, do not repurpose the machine digest fields:
+
+- A flag in the payload says "this licence is not machine-bound." Decoders
+  that predate it must fail closed on an unknown flag rather than ignore it —
+  a licence a shipped build cannot understand must not be silently accepted.
+- Bump `FORMAT_VERSION` in both files. Existing machine-bound licences keep
+  validating; that is what the version is for.
+- `status.ts` gains one branch: unbound and signature-valid → licensed, skip
+  the fingerprint comparison entirely. It must **not** fall through to the
+  3-of-4 check with a zeroed fingerprint, which would compare zeros against
+  real hardware and fail.
+
+### ERP side (xp-enterprise / erp)
+
+A `LicenseKey` model: `product`, `serial`, `keyString`, `edition`, expiry,
+`status`, `client?`, `soldAt?`, `activatedSiteId?`, `activatedAt?`,
+`duplicateSiteIds[]`. Plus a CSV import for a freshly minted batch, assignment
+to a Client on sale, and a view listing serials with more than one siteId.
+
+The activation report endpoint must be **advisory only**. The box is already
+licensed by the time it calls; a 500 from the ERP, a DNS failure or a
+restaurant with no internet must change nothing about whether the POS works.
+Same discipline as `GET /api/pos/entitlements` in xp-enterprise, which returns
+500 rather than `200 {active:false}` precisely so a server-side fault cannot
+read as a confirmed negative.
+
 ## What you are actually protecting
 
 Unchanged from the original brief, and worth re-reading before anybody proposes
@@ -269,6 +354,52 @@ criterion that does not need a client box. Run it after any change in here.
 
 `node tools/licensing/issue.mjs --selftest` round-trips a key through the
 issuing codec.
+
+### Two checks fail on any machine that has XP POS actually installed
+
+**This is the test's isolation, not a product bug.** Confirmed 2026-08-05.
+
+```
+FAIL  a fresh install starts a 30-day trial  :: trial, 29d
+FAIL  trial state survives a process restart
+```
+
+Both assert `daysRemaining === 30` on a simulated fresh install. `e2e.mjs`
+isolates `POS_DATA_DIR` (line 148) but **not** the registry — and
+`HKLM\SOFTWARE\XenithPulse\XP POS\TrialStartedAt` is machine-global. On a box
+with a real install, that key holds a trial start from days ago, "oldest wins"
+in `trial.ts` picks it over the scratch folder's just-written one, and the
+"fresh" trial is correctly reported as already part-used.
+
+Verify rather than assume, if you see this: read the key, then check the
+arithmetic lands on the number the test printed.
+
+```powershell
+reg query "HKLM\SOFTWARE\XenithPulse\XP POS"
+```
+
+Worked example from the day this was found — registry said
+`2026-08-03T14:55:06Z`, `now` was `2026-08-04T20:30Z`, so 28.77 days remained
+and `Math.ceil` gives **29**, exactly what the test reported. If your numbers
+reconcile the same way, the code is fine. If they do not, that IS a
+regression — every other check, including all the security-critical ones
+(copied licence refused, forged licence refused, clock rollback, grace period
+exhaustion), passes regardless of this and should be treated as load-bearing.
+
+The test's own header lists the registry backstop as something it cannot
+check because *writes* fail soft without Administrator. That is right as far
+as it goes, and it missed that *reads* still succeed and leak in.
+
+Not fixed here, because the obvious fix is worse than the problem: an env var
+overriding the key path would be a documented trial-reset bypass sitting in a
+world-readable file on the customer's box, which is the exact thing "Do not
+add a licensing setting to `.env`" under "Watch out for" forbids. Having the
+test delete and restore the real key needs Administrator and risks resetting
+a developer's own trial if the restore fails. The honest fix is for `e2e.mjs`
+to read the registry itself and either skip those two checks with a loud
+message or assert 30 days from the *effective* start — do that when it next
+gets in the way, and do not "fix" it by relaxing the assertion to `>= 28`,
+which would hide a real off-by-one forever.
 
 ## Acceptance criteria
 

@@ -111,7 +111,26 @@
       "Bash(grep -n \"href=\\\\\"/\\\\|label:\\\\|title:\" components/layout/Sidebar.tsx)",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('name:',p.name\\); console.log\\('version:',p.version\\); console.log\\('scripts:',JSON.stringify\\(p.scripts,null,2\\)\\)\")",
       "Bash(grep -n \"^#\\\\|^$\" \"e:/XP-POS-DESK/.env.example\")",
-      "Bash(echo \"EXIT_CODE=$?\")"
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(sc.exe query *)",
+      "Read(//c/Program Files/XP POS/**)",
+      "Bash(curl -s -o /tmp_manifest.json -w \"HTTP %{http_code}\\\\n\" https://updates.xenithpulse.com/manifest.json)",
+      "Bash(cat /tmp_manifest.json)",
+      "Bash(curl -sI https://updates.xenithpulse.com/releases/XP-POS-Setup-0.1.0.exe)",
+      "Bash(wc -c /tmp_manifest.json)",
+      "Bash(curl -s -o 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\3feba2d2-36df-47c9-bef9-cf291a1a77ab\\\\scratchpad/manifest.json' https://updates.xenithpulse.com/manifest.json)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All | Select-Object FeatureName, State\")",
+      "Bash(powershell.exe -NoProfile -Command \"\\(Get-CimInstance Win32_ComputerSystem\\).HypervisorPresent\")",
+      "Bash(powershell.exe -NoProfile -Command 'Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='\\\\''FreeGB'\\\\'';e={[math]::Round\\($_.Free/1GB,1\\)}}')",
+      "Bash(rclone listremotes *)",
+      "Read(//c/Users/DELL/.config/**)",
+      "Bash(grep -i \"POS_UPDATE\\\\|^VERSION\\\\|POS_APP_VERSION\" \"/c/ProgramData/XP POS/.env\" 2>&1)",
+      "Read(//c/ProgramData/XP POS/**)",
+      "Bash(echo \"---tools/licensing---\"; ls -la tools/licensing tools/licensing/lib 2>/dev/null; echo \"---signing key present?---\"; ls -la ~/.xenithpulse/ 2>&1 | head)",
+      "Read(//c/Users/DELL/.xenithpulse/**)",
+      "PowerShell(reg query \"HKLM\\\\SOFTWARE\\\\XenithPulse\\\\XP POS\" 2>&1)",
+      "Bash(curl -s --max-time 45 -w '\\\\nHTTP %{http_code}\\\\n' -o 'C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\3feba2d2-36df-47c9-bef9-cf291a1a77ab\\\\scratchpad/m2.json' https://updates.xenithpulse.com/manifest.json)",
+      "Bash(curl -sI --max-time 45 https://updates.xenithpulse.com/releases/XP-POS-Setup-0.2.0.exe)"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",
@@ -120,7 +139,14 @@
       "E:\\xp-thermal-service",
       "C:\\Users\\DELL\\AppData\\Local\\Temp\\claude\\e--XP-POS-DESK\\66d7a33a-0a33-43c6-bab6-eeb61469078e\\tasks",
       "C:\\Users\\DELL\\AppData\\Local\\Temp\\claude\\e--XP-POS-DESK\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\tasks",
-      "C:\\Users\\DELL\\AppData\\Roaming\\rclone"
+      "C:\\Users\\DELL\\AppData\\Roaming\\rclone",
+      "E:\\Xenith_Main\\xp-enterprise\\models\\schemas",
+      "E:\\Xenith_Main\\xp-enterprise\\models\\factories",
+      "E:\\Xenith_Main\\xp-enterprise\\app\\api\\stripe\\webhook",
+      "E:\\Xenith_Main\\xp-enterprise\\app\\api\\pos\\entitlements",
+      "E:\\Xenith_Main\\xp-enterprise\\app\\api\\pos\\link-site",
+      "E:\\Xenith_Main\\xp-enterprise\\app\\connect-pos",
+      "E:\\Xenith_Main\\xp-enterprise"
     ]
   }
 }

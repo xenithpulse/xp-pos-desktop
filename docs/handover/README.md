@@ -44,9 +44,10 @@ Do them in numbered order. The numbering **is** the execution order.
 
 | Doc | Phase | Size | Status |
 |---|---|---|---|
-| [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | **engineering DONE — awaiting certificate purchase** |
-| [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **update delivery + diagnostics DONE — awaiting a published manifest; scopes B and D deliberately not built** |
-| [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
+| [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | **engineering DONE — awaiting certificate purchase. This is now the single blocker on shipping ANY update; see Phase 10** |
+| [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **BUILT AND PUBLISHING. 0.2.0 live on `stable`; `POS_UPDATE_URL` now defaults to the real manifest. Blocked on the certificate before another release may ship. On-laptop test plan: [`PHASE-10-TEST-PLAN.md`](PHASE-10-TEST-PLAN.md)** |
+| [`PHASE-10-TEST-PLAN.md`](PHASE-10-TEST-PLAN.md) | The four Phase 10 scenarios that need a real box, sequenced for one laptop with no snapshots | small | **not yet run** |
+| [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **Model A engineering DONE. Moving to a pre-signed key pool (Model B) — designed, not built. SIGNING KEY STILL NOT BACKED UP** |
 | [`RESILIENCE-AND-QA.md`](RESILIENCE-AND-QA.md) | Self-healing services, watchdog, and the per-device QA check | medium | **built — `-Destructive` and reboot tests still to run on a real box** |
 | [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons and wizard imagery, plus the whole first-run path: bootstrap, sample data, and finding the box on the network | large | **built — needs the on-box walkthrough; contact details and the EULA still placeholders** |
 | [`PHASE-13-SELL-READY-GAPS.md`](PHASE-13-SELL-READY-GAPS.md) | Delivery order module, a standalone kitchen screen, wiring up the unused WhatsApp sender — found by a persona audit (owner, cashier, kitchen), not by brainstorming | medium | **engineering DONE (`tsc`/`next build` clean) — needs `installer\build.ps1`, a real WhatsApp send test, and a decision on the `chef` role's missing `manage_orders` permission (found while building `/kitchen`)** |
