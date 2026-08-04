@@ -72,6 +72,14 @@ param(
     [ValidateRange(0, 600)]
     [int]$StartDelaySeconds = 30,
 
+    # How long the watchdog stays out of the way after a deliberate Stop.
+    #
+    # Long enough for real maintenance, short enough that a POS stopped and
+    # forgotten on a Friday is serving again well before Saturday lunch. It
+    # expires by itself - see Suspend-Watchdog.
+    [ValidateRange(1, 1440)]
+    [int]$PauseMinutes = 60,
+
     [string]$InstallDir = "$env:ProgramFiles\XP POS"
 )
 
@@ -270,8 +278,28 @@ function Invoke-Install {
             'failure', $svc.Id, 'reset= 3600',
             'actions= restart/10000/restart/30000/restart/60000'
         ) | Out-Null
+
+        <#
+            Recovery actions alone are NOT enough, and this flag is why.
+
+            By default Windows fires recovery actions only when a service
+            terminates UNEXPECTEDLY - a crash, a non-zero exit. If the service
+            process exits cleanly with code 0, the SCM records "Stopped" and
+            does absolutely nothing about it. Measured on a live box: all three
+            services had FAILURE_ACTIONS_ON_NONCRASH_FAILURES = FALSE, so a
+            clean exit meant a POS that stayed down until somebody noticed.
+
+            That matters here more than it would elsewhere because these are
+            WinSW-wrapped services. The service process is the WRAPPER, and the
+            wrapper exits 0 in several situations where the child died - so the
+            case Windows ignores is exactly the case most likely to happen.
+
+            With the flag on, any stop that was not an explicit
+            Stop-Service/sc stop triggers the restart ladder above.
+        #>
+        Invoke-Native -FilePath 'sc.exe' -Arguments @('failureflag', $svc.Id, '1') | Out-Null
     }
-    Write-Ok "Recovery actions set (restart after 10s / 30s / 60s)"
+    Write-Ok "Recovery actions set (restart after 10s / 30s / 60s, including clean exits)"
 
     # Shorten the delayed-auto-start wait. WinSW's <delayedAutoStart/> sets the
     # flag but not the delay, and Windows' default is 120s - measured at 158s to
@@ -287,6 +315,127 @@ function Invoke-Install {
         }
     }
     Write-Ok "Boot delay set to ${StartDelaySeconds}s (Windows default is 120s)"
+
+    Register-Watchdog
+}
+
+# ── Watchdog ─────────────────────────────────────────────────────────────────
+
+$WatchdogTask = 'XPPOS-Watchdog'
+$PausePath    = Join-Path $env:ProgramData 'XP POS\watchdog-pause'
+
+<#
+    A scheduled task, deliberately NOT a fourth service.
+
+    The thing that repairs the services cannot be one of the services it
+    repairs. A watchdog service could be stopped by exactly the dependency
+    cascade, recovery exhaustion or feature update it exists to recover from,
+    and nothing would notice. Task Scheduler is a separate subsystem with its
+    own recovery, it runs as SYSTEM with no session, and it survives the
+    reboots that Windows Update forces.
+
+    Two triggers, because they cover different failures: at startup (the box
+    came back and something did not), and every few minutes (something stopped
+    while it was up).
+#>
+function Register-Watchdog {
+    $script = Join-Path $InstallDir 'scripts\watchdog.ps1'
+    if (-not (Test-Path $script)) {
+        Write-Warn "watchdog.ps1 is missing - the POS will run, but nothing will repair it if a service stops"
+        return
+    }
+
+    try {
+        $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $action = New-ScheduledTaskAction -Execute $ps -Argument (
+            '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script +
+            '" -InstallDir "' + $InstallDir + '"'
+        )
+
+        # The startup trigger waits 2 minutes: the services are on a 30s delayed
+        # start and mongod may still be recovering its journal. Repairing a POS
+        # that is merely still coming up would restart things for no reason.
+        $atStartup = New-ScheduledTaskTrigger -AtStartup
+        $atStartup.Delay = 'PT2M'
+
+        # Repeating forever from a start time in the past, so the first run is
+        # immediate rather than five minutes after provisioning finishes.
+        $repeating = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(-1) `
+            -RepetitionInterval (New-TimeSpan -Minutes 5)
+
+        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+
+        # IgnoreNew: a run that takes longer than the interval (one that ends up
+        # re-provisioning) must not have a second copy started on top of it.
+        # No idle or battery conditions: a POS on a UPS during a power cut is
+        # exactly when this has to run.
+        $settings = New-ScheduledTaskSettingsSet `
+            -MultipleInstances IgnoreNew `
+            -ExecutionTimeLimit (New-TimeSpan -Minutes 30) `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
+
+        Register-ScheduledTask -TaskName $WatchdogTask -Action $action `
+            -Trigger @($atStartup, $repeating) -Principal $principal -Settings $settings `
+            -Description 'Restarts the XP POS services if they stop. See C:\ProgramData\XP POS\logs\watchdog.log' `
+            -Force -ErrorAction Stop | Out-Null
+
+        Write-Ok "$WatchdogTask registered (checks every 5 minutes and at startup)"
+    } catch {
+        # Not fatal. A box with a locked-down Task Scheduler still runs the POS;
+        # it just has no automatic repair, and it should say so rather than
+        # implying a safety net that is not there.
+        Write-Warn "Could not register the watchdog task: $($_.Exception.Message)"
+        Write-Host "         The POS will run, but a stopped service will stay stopped." -ForegroundColor DarkGray
+    }
+}
+
+function Unregister-Watchdog {
+    try {
+        if (Get-ScheduledTask -TaskName $WatchdogTask -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $WatchdogTask -Confirm:$false -ErrorAction Stop
+            Write-Ok "$WatchdogTask removed"
+        }
+    } catch {
+        Write-Warn "Could not remove the watchdog task: $($_.Exception.Message)"
+    }
+}
+
+<#
+    Tell the watchdog to leave the POS alone for a while.
+
+    Written whenever this script stops a service on purpose. Without it, a
+    technician stopping the POS for maintenance would watch it restart itself
+    within five minutes, and would reasonably conclude the box was possessed.
+
+    An EXPIRY rather than a flag: a pause that has to be cleared by hand is one
+    that gets forgotten, and a watchdog that is silently off is worse than no
+    watchdog at all, because everyone believes it is working.
+#>
+function Suspend-Watchdog {
+    param([int]$Minutes = 60)
+    try {
+        $until = (Get-Date).AddMinutes($Minutes)
+        $dir = Split-Path $PausePath -Parent
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+        Set-Content -Path $PausePath -Value $until.ToString('o') -Encoding UTF8
+        Write-Ok "Watchdog paused until $($until.ToString('HH:mm')) - it will resume on its own"
+    } catch {
+        Write-Warn "Could not pause the watchdog: $($_.Exception.Message)"
+    }
+}
+
+function Resume-Watchdog {
+    try {
+        if (Test-Path $PausePath) {
+            Remove-Item $PausePath -Force -ErrorAction Stop
+            Write-Ok "Watchdog resumed"
+        }
+    } catch {
+        Write-Warn "Could not resume the watchdog: $($_.Exception.Message)"
+    }
 }
 
 # ── Start / Stop ─────────────────────────────────────────────────────────────
@@ -314,6 +463,12 @@ function Invoke-Start {
 function Invoke-Stop {
     $targets = if ($Service) { @($ServicesReversed | Where-Object { $_.Id -eq $Service }) } else { $ServicesReversed }
     Write-Step "Stopping services$(if ($Service) { " ($Service)" })"
+
+    # Stopping through this script is always deliberate, so hold the watchdog
+    # off. Restart re-arms it at the end; a bare Stop leaves the pause to expire
+    # on its own, which is what brings the POS back if somebody stops it for
+    # maintenance and then goes home.
+    Suspend-Watchdog -Minutes $PauseMinutes
     # Reverse order: Caddy depends on App, App on MongoDB.
     foreach ($svc in $targets) {
         if (-not (Test-ServiceExists $svc.Id)) { continue }
@@ -362,11 +517,39 @@ function Invoke-Status {
         Write-Host "         Expect the POS to answer about ${delay}s after a reboot." -ForegroundColor DarkGray
         Write-Host "         Checking sooner than that will show them Stopped - that is normal." -ForegroundColor DarkGray
     }
+
+    # The watchdog is the thing that makes "Stopped" temporary rather than
+    # permanent, so its state belongs in the status a technician actually reads.
+    $task = Get-ScheduledTask -TaskName $WatchdogTask -ErrorAction SilentlyContinue
+    if (-not $task) {
+        Write-Warn "The watchdog is NOT registered - a stopped service will stay stopped."
+        Write-Host "         Fix: re-run provision.ps1 as Administrator." -ForegroundColor DarkGray
+    } elseif ($task.State -eq 'Disabled') {
+        Write-Warn "The watchdog task exists but is DISABLED."
+        Write-Host "         Fix: Enable-ScheduledTask -TaskName $WatchdogTask" -ForegroundColor DarkGray
+    } else {
+        $info = Get-ScheduledTaskInfo -TaskName $WatchdogTask -ErrorAction SilentlyContinue
+        $last = if ($info -and $info.LastRunTime -gt [datetime]'2000-01-01') { $info.LastRunTime } else { 'not yet' }
+        Write-Ok "Watchdog active (last run: $last)"
+        if (Test-Path $PausePath) {
+            try {
+                $until = [datetime]::Parse((Get-Content $PausePath -Raw).Trim())
+                if ((Get-Date) -lt $until) {
+                    Write-Warn "Watchdog is PAUSED until $($until.ToString('HH:mm')) - the POS will not be repaired until then."
+                    Write-Host "         Resume now: `"$PSCommandPath`" -Action Start" -ForegroundColor DarkGray
+                }
+            } catch { }
+        }
+    }
 }
 
 # ── Uninstall ────────────────────────────────────────────────────────────────
 function Invoke-Uninstall {
     Write-Step "Removing services"
+    # Before stopping anything: a watchdog left registered after an uninstall
+    # would keep trying to start services that no longer exist, and would
+    # eventually re-run a provision.ps1 that has been deleted.
+    Unregister-Watchdog
     Invoke-Stop
     foreach ($svc in $ServicesReversed) {
         if (-not (Test-ServiceExists $svc.Id)) {
@@ -392,9 +575,12 @@ switch ($Action) {
     # MongoDB, initiate the replica set, and only then start the app.
     'Register'  { Invoke-Install }
     'Install'   { Invoke-Install; Invoke-Start; Invoke-Status }
-    'Start'     { Invoke-Start }
+    # Start and Restart clear the pause: whatever maintenance it was covering
+    # has finished, and leaving an hour of unwatched runtime behind would be a
+    # gap nobody remembers opening.
+    'Start'     { Resume-Watchdog; Invoke-Start }
     'Stop'      { Invoke-Stop }
-    'Restart'   { Invoke-Stop; Invoke-Start }
+    'Restart'   { Invoke-Stop; Invoke-Start; Resume-Watchdog }
     'Status'    { Invoke-Status }
     'Uninstall' { Invoke-Uninstall }
 }

@@ -580,6 +580,11 @@ foreach ($rel in @(
     'service\XPPOS-Caddy.exe', 'service\XPPOS-Caddy.xml',
     'scripts\provision.ps1', 'scripts\services.ps1', 'scripts\rs-init.mjs',
     'scripts\apply-update.ps1',
+    # watchdog.ps1 is what makes a stopped service temporary rather than
+    # permanent, and qa-check.ps1 is what proves a box is fit to leave with a
+    # customer. Both are referenced by the scheduled task and by the handover
+    # procedure, so shipping without either is a silent loss of a safety net.
+    'scripts\watchdog.ps1', 'scripts\qa-check.ps1',
     'config\env.template', 'config\mongod.cfg', 'config\Caddyfile.http'
 )) {
     Assert-Payload "present: $rel" (Test-Path (Join-Path $OutDir $rel))

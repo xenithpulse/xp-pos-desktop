@@ -47,6 +47,7 @@ Do them in numbered order. The numbering **is** the execution order.
 | [`PHASE-9-CODE-SIGNING.md`](PHASE-9-CODE-SIGNING.md) | Authenticode signing of the installer and service wrappers | small | **engineering DONE — awaiting certificate purchase** |
 | [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **update delivery + diagnostics DONE — awaiting a published manifest; scopes B and D deliberately not built** |
 | [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
+| [`RESILIENCE-AND-QA.md`](RESILIENCE-AND-QA.md) | Self-healing services, watchdog, and the per-device QA check | medium | **built — `-Destructive` and reboot tests still to run on a real box** |
 | [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, in-app naming | small | not started |
 
 **Why this order:**
@@ -68,6 +69,11 @@ Do them in numbered order. The numbering **is** the execution order.
   second, parallel scheme. **Phase 11 did**: `lib/licensing/paths.ts` imports
   the data root from `lib/updates/paths.ts` rather than deriving its own, and
   the siteId is untouched.
+- **Resilience and QA before 12**, because branding is the only phase that
+  changes nothing functional and there is no point making a box look right
+  before proving it stays up. It is not numbered: it hardens 9-11 rather than
+  adding a feature. `installer\scripts\qa-check.ps1` is now the thing to run on
+  every box before it is left with a customer.
 - **12 last** because it is the only phase that changes nothing functional.
 
 **One thing from Phase 11 is not a code task and has no deadline but the first
