@@ -269,8 +269,14 @@ var
   LogHint: string;
 begin
   ScriptPath := ExpandConstant('{app}\scripts\provision.ps1');
+  { Name the provisioning transcript FIRST and explicitly. It is the file that
+    says what actually went wrong, and pointing at the log DIRECTORY instead
+    sent one investigation straight past it into the three service logs, which
+    describe a database that was never asked to start. }
   LogHint := #13#10#13#10 +
-             'Logs:   ' + ExpandConstant('{#DataRoot}') + '\logs' + #13#10 +
+             'What went wrong is in:' + #13#10 +
+             '  ' + ExpandConstant('{#DataRoot}') + '\logs\provision.log' + #13#10#13#10 +
+             'Other logs: ' + ExpandConstant('{#DataRoot}') + '\logs' + #13#10 +
              'Status: right-click PowerShell, Run as administrator, then:' + #13#10 +
              '  & "' + ExpandConstant('{app}\scripts\services.ps1') + '" -Action Status';
 

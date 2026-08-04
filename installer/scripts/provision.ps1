@@ -78,6 +78,12 @@ function Invoke-Native {
         try {
             $out = & $FilePath @Arguments 2>$errFile | Out-String
             $err = if (Test-Path $errFile) { Get-Content $errFile -Raw } else { '' }
+            # Get-Content -Raw returns $null for an EMPTY file, not ''. A caller
+            # writing "$($r.StdErr.Trim())" then dies on a null reference, which
+            # under 'Stop' is terminating - it took down a real install through
+            # services.ps1. Coalesce here so no call site has to know.
+            if ($null -eq $out) { $out = '' }
+            if ($null -eq $err) { $err = '' }
             return [pscustomobject]@{
                 ExitCode = $LASTEXITCODE
                 StdOut   = $out
@@ -102,10 +108,42 @@ $NodeExe    = Join-Path $InstallDir 'node\node.exe'
 $CaddyExe   = Join-Path $InstallDir 'caddy\caddy.exe'
 $AppModules = Join-Path $InstallDir 'app\node_modules'
 
+<#
+    Record this run to a file BEFORE anything else can fail.
+
+    WHY. Provisioning is the step most likely to fail on a client site - it is
+    the one that touches ports, services, the database and the firewall - and
+    until this existed its output went to a console window that Inno Setup
+    closes on the way out. The installer then said "the configuration step
+    failed (exit code 1). Logs: C:\ProgramData\XP POS\logs", and that directory
+    contained the three SERVICE logs and nothing whatever about provisioning.
+    The one message that said what actually went wrong was the one nobody could
+    read.
+
+    Appended, not overwritten: the interesting case is a technician re-running
+    this two or three times, and the first failure is usually the real one.
+
+    Best effort. Some hosts do not support transcription, and provisioning a
+    restaurant's POS must not be blocked by not being able to write a log about
+    provisioning a restaurant's POS.
+#>
+$LogDir = Join-Path $DataRoot 'logs'
+$ProvisionLog = Join-Path $LogDir 'provision.log'
+$script:TranscriptOn = $false
+try {
+    if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
+    Start-Transcript -Path $ProvisionLog -Append -ErrorAction Stop | Out-Null
+    $script:TranscriptOn = $true
+} catch {
+    Write-Host "    WARN Could not start the provisioning log: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "  XP POS - appliance provisioning" -ForegroundColor White
 Write-Host "  program : $InstallDir" -ForegroundColor DarkGray
 Write-Host "  data    : $DataRoot" -ForegroundColor DarkGray
+Write-Host "  log     : $ProvisionLog" -ForegroundColor DarkGray
+Write-Host "  started : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
 
 # ── Elevation ────────────────────────────────────────────────────────────────
 $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -660,3 +698,10 @@ Write-Host "   Config:  $EnvPath" -ForegroundColor DarkGray
 Write-Host "   Logs:    $DataRoot\logs" -ForegroundColor DarkGray
 Write-Host "   Status:  `"$Services`" -Action Status" -ForegroundColor DarkGray
 Write-Host ""
+
+# Only the success path reaches here. The failure paths call exit directly and
+# do NOT stop the transcript - deliberately: this script runs as its own
+# powershell.exe, the transcript is written progressively rather than buffered,
+# and the process ending flushes it. A failed run therefore still leaves a
+# complete provision.log, which is the entire point of having one.
+if ($script:TranscriptOn) { try { Stop-Transcript | Out-Null } catch { } }

@@ -351,3 +351,13 @@ not worth it while the sites already have AnyDesk.
   the signal it should be invoking the installer instead.
 - `identity.ts` is shared with Phase 11 by design. Do not build a second
   identity scheme there.
+- **Service definitions now really are re-applied on upgrade.** They were not.
+  `services.ps1` called `winsw refresh`, which is a **v3** command; `deps.json`
+  pins WinSW 2.12.0 (v3 is alpha), so it answered `Unknown command: refresh` on
+  every upgrade. The result was only a warning, so upgrades looked clean while
+  silently keeping the service definition a box was FIRST installed with —
+  meaning anything added to `XPPOS-App.xml` since then (environment variables
+  the app reads, `<delayedAutoStart/>`, log paths) never reached a site that had
+  been in service longest. It is now stop + uninstall + install. If an update
+  ever needs a changed service definition to take effect, this is the code path
+  it depends on.

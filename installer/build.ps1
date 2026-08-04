@@ -909,6 +909,38 @@ if (-not $appVersion) { Write-Err "package.json has no version field."; exit 1 }
 Write-Ok "version $appVersion (from package.json)"
 
 $iss = Join-Path $InstallerDir 'setup.iss'
+$setupExe = Join-Path $InstallerDir "dist\XP-POS-Setup-$appVersion.exe"
+
+<#
+    Delete any previous installer BEFORE compiling.
+
+    WHY THIS EXISTS. ISCC writes the setup .exe incrementally: it lays down the
+    ~3.5 MB stub first and appends the compressed payload over the following
+    minutes. A compile that dies partway - a locked source file, an antivirus
+    holding a handle, the machine going to sleep - therefore leaves a file with
+    the right NAME, the right timestamp and about 3 % of the right size sitting
+    in dist\.
+
+    That file looks finished to a human. Running it gets "the setup files are
+    corrupted, please obtain a new copy of the program", which sends everybody
+    hunting for a corrupted DOWNLOAD rather than a failed BUILD. It has already
+    cost one debugging session, and it would have shipped to a customer the
+    first time somebody copied the file off this machine without watching the
+    build finish.
+
+    Removing it first means a failed compile leaves NO installer at all, which
+    is unambiguous. The size assertion after the compile is the other half.
+#>
+if (Test-Path $setupExe) {
+    Remove-Item $setupExe -Force -ErrorAction SilentlyContinue
+    if (Test-Path $setupExe) {
+        Write-Err "Could not remove the previous installer: $setupExe"
+        Write-Host "         Something is holding it open - a running setup, an" -ForegroundColor DarkGray
+        Write-Host "         antivirus scan, or Explorer's preview pane." -ForegroundColor DarkGray
+        exit 1
+    }
+}
+
 $isccArgs = @("/DAppVersion=$appVersion", '/Qp')
 
 # Have Inno sign the uninstaller it generates. Both arguments are required
@@ -926,20 +958,56 @@ if ($SignThumbprint) {
 }
 $isccArgs += $iss
 
+# Compiling 439 MB takes minutes. Say so, or the silence reads as a hang.
+Write-Host "         compressing ~$([int]($size/1MB)) MB - this takes a few minutes..." -ForegroundColor DarkGray
+
 $isccResult = Invoke-Native -FilePath $IsccPath -Arguments $isccArgs
 if ($isccResult.ExitCode -ne 0) {
     Write-Err "Inno Setup compilation failed (exit $($isccResult.ExitCode))."
     if ($isccResult.StdOut) { Write-Host $isccResult.StdOut -ForegroundColor DarkGray }
     if ($isccResult.StdErr) { Write-Host $isccResult.StdErr -ForegroundColor DarkGray }
+    # The partial .exe must not survive a failed compile - see the note above.
+    Remove-Item $setupExe -Force -ErrorAction SilentlyContinue
+    Write-Host ""
+    Write-Host "   The half-written installer has been deleted, so there is no" -ForegroundColor DarkGray
+    Write-Host "   corrupt file to run by mistake. Re-run the build." -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "   If this keeps happening with a different message each time," -ForegroundColor DarkGray
+    Write-Host "   real-time antivirus on the BUILD machine is the usual cause -" -ForegroundColor DarkGray
+    Write-Host "   it holds handles on files ISCC is reading and on the .exe it is" -ForegroundColor DarkGray
+    Write-Host "   writing. Exclude the build tree (as Administrator):" -ForegroundColor DarkGray
+    Write-Host "     Add-MpPreference -ExclusionPath '$RepoRoot\installer'" -ForegroundColor DarkGray
+    Write-Host ""
     exit 1
 }
 
-$setupExe = Join-Path $InstallerDir "dist\XP-POS-Setup-$appVersion.exe"
 if (-not (Test-Path $setupExe)) {
     Write-Err "ISCC reported success but $setupExe is missing."
     exit 1
 }
 $setupSize = (Get-Item $setupExe).Length
+
+<#
+    The installer must be a plausible size.
+
+    ISCC has been observed exiting 0 having written little more than its own
+    stub. A 118 MB payload cannot compress to single-digit megabytes, so
+    anything that small is a truncated file that WILL fail its own CRC check on
+    a customer's machine with "the setup files are corrupted".
+
+    The floor is deliberately generous - it is catching a 3.5 MB stub, not
+    policing compression ratios - and it deletes the bad file rather than
+    leaving it for somebody to find later and trust.
+#>
+$MinSetupBytes = 40MB
+if ($setupSize -lt $MinSetupBytes) {
+    Write-Err ("The installer is only {0:N1} MB - it is truncated, not finished." -f ($setupSize/1MB))
+    Write-Host "         A $([int]($size/1MB)) MB payload cannot compress to that." -ForegroundColor DarkGray
+    Write-Host "         Running it would say 'the setup files are corrupted'." -ForegroundColor DarkGray
+    Remove-Item $setupExe -Force -ErrorAction SilentlyContinue
+    Write-Host "         Deleted. Re-run the build." -ForegroundColor DarkGray
+    exit 1
+}
 
 # Sign the finished installer. The wrappers inside it were already signed during
 # staging; this covers the outer .exe that the customer actually downloads and
@@ -955,8 +1023,18 @@ Write-Host "   INSTALLER READY" -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host ("   file     : {0}" -f $setupExe) -ForegroundColor Cyan
-Write-Host ("   size     : {0:N1} MB (from a {1:N0} MB payload)" -f ($setupSize/1MB), ($size/1MB)) -ForegroundColor DarkGray
+Write-Host ("   size     : {0:N1} MB ({1} bytes, from a {2:N0} MB payload)" -f ($setupSize/1MB), $setupSize, ($size/1MB)) -ForegroundColor DarkGray
 Write-Host ("   version  : {0}" -f $appVersion) -ForegroundColor DarkGray
+
+# The digest earns its place twice: it is the value POS_UPDATE_URL's manifest
+# needs for this release (see PHASE-10), and it is how you prove the copy that
+# reached a test laptop or a customer is byte-identical to what was built. A
+# truncated copy is indistinguishable from a corrupt one by eye, and both report
+# themselves as "the setup files are corrupted".
+$setupHash = (Get-FileHash $setupExe -Algorithm SHA256).Hash
+Write-Host ("   sha256   : {0}" -f $setupHash) -ForegroundColor DarkGray
+Write-Host "              Verify a copy with:" -ForegroundColor DarkGray
+Write-Host "                Get-FileHash .\XP-POS-Setup-$appVersion.exe -Algorithm SHA256" -ForegroundColor DarkGray
 Write-Host ""
 if ($SignThumbprint) {
     # Report what Windows actually thinks, not what signtool claimed. A signature
