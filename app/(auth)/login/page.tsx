@@ -1,14 +1,17 @@
 // app/(auth)/login/page.tsx
 //
-// A server wrapper around the sign-in form, for one reason: a freshly installed
-// POS has no accounts, and showing a sign-in box to someone who cannot possibly
-// have credentials is a dead end. This sends them to /setup instead.
+// A server wrapper around the sign-in form, for two reasons:
 //
-// The check is cheap. hasAnyAdmin() caches the answer in memory once an account
-// exists, so after the first run this costs one boolean comparison per render.
+//  1. A freshly installed POS has an empty database. This is where bootstrap is
+//     triggered, so the first person to open the address gets a working account
+//     rather than a login box they cannot possibly get past. See lib/firstRun.ts.
+//  2. While that account is still on its default password, the credentials are
+//     shown on the screen. Hiding them would just mean a phone call.
+//
+// The check is cheap after the first run: hasAnyAdmin() caches the positive
+// answer in memory.
 
-import { redirect } from "next/navigation";
-import { hasAnyAdmin } from "@/lib/firstRun";
+import { ensureBootstrapped, getFirstRunStatus } from "@/lib/firstRun";
 import LoginForm from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -18,22 +21,24 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ created?: string }>;
 }) {
-  // redirect() works by THROWING a NEXT_REDIRECT error, so it must be called
-  // outside the try - a catch around it would swallow the redirect and render
-  // the sign-in form instead, silently undoing this whole page.
-  let configured: boolean;
-  try {
-    configured = await hasAnyAdmin();
-  } catch {
-    // Database unreachable, so whether accounts exist is unknown. Show the
-    // sign-in form: it fails with a message the operator can act on, which
-    // beats sending them to a setup page that cannot work either.
-    configured = true;
-  }
+  let hint: { username: string; password: string } | null = null;
+  let seeding = false;
 
-  if (!configured) redirect("/setup");
+  try {
+    await ensureBootstrapped();
+    const status = await getFirstRunStatus();
+    if (status.usingDefaultCredentials) {
+      hint = { username: status.defaultUsername, password: status.defaultPassword };
+    }
+    seeding = status.demoDataSeeding;
+  } catch (err) {
+    // Mongo is unreachable. Render the form anyway: a sign-in attempt fails
+    // with a message the operator can act on, which is more useful than an
+    // error page that says nothing about what to check.
+    console.error("[login] first-run check failed:", err);
+  }
 
   const { created } = await searchParams;
 
-  return <LoginForm justCreated={created === "1"} />;
+  return <LoginForm justCreated={created === "1"} defaultCredentials={hint} sampleDataLoading={seeding} />;
 }

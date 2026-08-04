@@ -26,6 +26,31 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
   await import('./lib/realtime/wsServer');
 
+  // First-run bootstrap: the admin account, and the sample menu and floor plan.
+  //
+  // Done here rather than on the first request so that by the time provisioning
+  // polls /login, the account already exists. It is idempotent and a no-op on
+  // every boot after the first, and the login page calls it too - so a boot
+  // that happened before Mongo was ready still recovers on the first page view.
+  //
+  // Wrapped for the same reason as everything else in this function: a POS that
+  // will not start is worse than a POS with no sample data.
+  try {
+    const { ensureBootstrapped } = await import('./lib/firstRun');
+    await ensureBootstrapped();
+  } catch (err) {
+    console.error('[first-run] bootstrap deferred to the first request:', err);
+  }
+
+  // Advertise xppos.local on the LAN. See lib/net/mdns.ts for why this exists:
+  // the machine's IP changes when the router reassigns it, and a name does not.
+  try {
+    const { startMdnsResponder } = await import('./lib/net/mdns');
+    await startMdnsResponder();
+  } catch (err) {
+    console.error('[mdns] responder failed to start; the POS continues without it:', err);
+  }
+
   // Wrapped, and wrapped deliberately. Nothing about checking for updates is
   // worth a POS that will not start: a throw out of register() is a till that
   // is dead until somebody drives to the site. If the agent cannot start, the

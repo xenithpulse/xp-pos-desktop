@@ -15,6 +15,7 @@ import {
   EyeOff,
   ArrowBigUp,
   CheckCircle2,
+  KeyRound,
 } from "lucide-react";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -42,7 +43,16 @@ const NO_AUTOFILL = {
   "data-form-type": "other",
 } as const;
 
-export default function LoginForm({ justCreated = false }: { justCreated?: boolean }) {
+export default function LoginForm({
+  justCreated = false,
+  defaultCredentials = null,
+  sampleDataLoading = false,
+}: {
+  justCreated?: boolean;
+  /** Non-null while the admin account is still on the password it was created with. */
+  defaultCredentials?: { username: string; password: string } | null;
+  sampleDataLoading?: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -58,17 +68,11 @@ export default function LoginForm({ justCreated = false }: { justCreated?: boole
     setCapsOn(e.getModifierState?.("CapsLock") ?? false);
   };
 
-  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const doSignIn = async (username: string, password: string) => {
     setLoading(true);
     setErrorMessage("");
 
-    const form = e.target as HTMLFormElement;
-    const result = await signIn("credentials", {
-      username: form.username.value,
-      password: form.password.value,
-      redirect: false,
-    });
+    const result = await signIn("credentials", { username, password, redirect: false });
 
     if (result?.error) {
       setLoading(false);
@@ -77,6 +81,12 @@ export default function LoginForm({ justCreated = false }: { justCreated?: boole
     } else {
       router.push("/");
     }
+  };
+
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    await doSignIn(form.username.value, form.password.value);
   };
 
   return (
@@ -104,9 +114,45 @@ export default function LoginForm({ justCreated = false }: { justCreated?: boole
           </div>
         </div>
 
-        {/* Arriving straight from /setup. Confirms the account was really
-            created, so a failed sign-in reads as a typo rather than as the
-            setup step having silently done nothing. */}
+        {/* First run. Nobody has been given credentials, so the POS hands them
+            over rather than leaving someone stuck at a login box on a machine
+            they just plugged in. The card disappears for good the moment the
+            password is changed - which the POS requires before the sample data
+            can be removed. */}
+        {defaultCredentials && (
+          <div className="xp-rise w-full max-w-xs rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] p-4">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-300/90">
+              <KeyRound size={13} className="shrink-0" />
+              First time here
+            </p>
+            <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+              <span className="text-white/40">Username</span>
+              <span className="font-mono text-white">{defaultCredentials.username}</span>
+              <span className="text-white/40">Password</span>
+              <span className="font-mono text-white">{defaultCredentials.password}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void doSignIn(defaultCredentials.username, defaultCredentials.password)}
+              disabled={loading}
+              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500/90 px-3 py-2 text-xs font-semibold text-black
+                         outline-none transition duration-200 ease-out
+                         hover:bg-emerald-400 active:scale-[0.99]
+                         focus-visible:ring-2 focus-visible:ring-emerald-400/60
+                         disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+              Sign in as {defaultCredentials.username}
+            </button>
+            <p className="mt-2.5 text-[10px] leading-relaxed text-white/35">
+              {sampleDataLoading
+                ? "Sample menu and tables are still loading - give it a moment."
+                : "Loaded with a sample menu and floor plan so you can try everything. You will be asked to set a real password before going live."}
+            </p>
+          </div>
+        )}
+
+        {/* Kept for the password-change flow, which returns here. */}
         {justCreated && (
           <p
             role="status"

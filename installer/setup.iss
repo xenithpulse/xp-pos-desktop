@@ -524,10 +524,13 @@ begin
     Sleep(2000);
 
     { Remove the firewall rules this install created. Leaving an open inbound
-      port behind after an uninstall would be sloppy at best. }
+      port behind after an uninstall would be sloppy at best.
+
+      The pattern is 'XP POS (*' rather than 'XP POS (TCP *' because there is
+      now a UDP rule too, for the mDNS responder that makes xppos.local work. }
     Exec(PowerShellExe,
       '-NoProfile -ExecutionPolicy Bypass -NonInteractive -Command ' +
-      '"Get-NetFirewallRule -DisplayName ''XP POS (TCP *'' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue"',
+      '"Get-NetFirewallRule -DisplayName ''XP POS (*'' -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue"',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 

@@ -364,6 +364,85 @@ if (-not (Test-PosResponding -Port $port)) {
     }
 }
 
+<#
+    ── Has this machine's address changed? ──────────────────────────────────
+
+    The POS is reached at http://<ip>:<port>, and the IP is handed out by the
+    router over DHCP. A power cut, a router restart or a replacement router can
+    move it - and when it does, the connection card on the wall, the address in
+    Add/Remove Programs and every tablet bookmark all point at nothing. The
+    failure a restaurant sees is a browser timeout that explains nothing, on the
+    night the router was replaced.
+
+    Nothing here can stop the address moving. What it can do is make sure the
+    card is right again within one watchdog cycle, so the answer to "where did
+    the POS go" is on the machine rather than in a support call.
+
+    The card is only rewritten when there IS a current LAN address and it
+    differs from the one on file. A box that is temporarily off the network
+    keeps its last known good address rather than having it replaced with
+    "unavailable" - the old address is more useful than none, and it becomes
+    correct again by itself when the network comes back.
+
+    (The xppos.local name the app advertises does not move, and is the real fix
+    for devices that support it. This covers the ones that do not.)
+#>
+try {
+    $cardPath = Join-Path $DataRoot 'connect-info.txt'
+    $connectCard = Join-Path $ScriptDir 'connect-card.ps1'
+
+    if (Test-Path $connectCard) {
+        $currentIp = $null
+        try {
+            $configs = Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' }
+            $ranked = $configs | Sort-Object -Property @{ Expression = {
+                try { (Get-NetIPInterface -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -ErrorAction Stop).InterfaceMetric }
+                catch { 9999 }
+            } }
+            foreach ($c in $ranked) {
+                foreach ($addr in $c.IPv4Address) {
+                    if (-not $currentIp -and $addr.IPAddress -notmatch '^(127\.|169\.254\.)') {
+                        $currentIp = $addr.IPAddress
+                    }
+                }
+            }
+        } catch { }
+
+        if ($currentIp) {
+            $expected = "http://${currentIp}:$port"
+
+            # Line 1 of the card is the bare staff URL, by contract. See
+            # connect-card.ps1.
+            $recorded = ''
+            if (Test-Path $cardPath) {
+                try { $recorded = (Get-Content $cardPath -TotalCount 1).Trim() } catch { }
+            }
+
+            if ($recorded -ne $expected) {
+                if ($recorded) {
+                    Write-Log "This machine's address changed from $recorded to $expected. Rewriting the connection card and shortcut." 'WARN'
+                } else {
+                    Write-Log "No connection card found. Writing one for $expected." 'INFO'
+                }
+                if (-not $WhatIf) {
+                    $startMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\XP POS'
+                    $cardArgs = @{
+                        InstallDir = $InstallDir
+                        DataRoot   = $DataRoot
+                        Port       = $port
+                        Quiet      = $true
+                    }
+                    if (Test-Path $startMenu) { $cardArgs['StartMenuDir'] = $startMenu }
+                    & $connectCard @cardArgs
+                }
+            }
+        }
+    }
+} catch {
+    # Never fatal. The POS being up is the job; the card is a convenience.
+    Write-Log "Could not check the connection card: $($_.Exception.Message)" 'WARN'
+}
+
 # A healthy run writes nothing. Silence in watchdog.log means the POS has been
 # up every time it was checked, which is the report worth having.
 exit 0

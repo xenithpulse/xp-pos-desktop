@@ -91,14 +91,31 @@
       "PowerShell($n='E:\\\\XP-POS-DESK\\\\installer\\\\branding\\\\make-branding.ps1'; $t=[System.IO.File]::ReadAllText\\($n\\); [System.IO.File]::WriteAllText\\($n,$t,\\(New-Object System.Text.UTF8Encoding\\($true\\)\\)\\); & $n)",
       "Bash(grep -n \"Assert-Payload\\\\|Copy-Item.*payload\\\\|function Assert\\\\|Stage-\\\\|scripts\\\\\\\\\\\\\\\\\" installer/build.ps1)",
       "PowerShell(Copy-Item 'E:\\\\XP-POS-DESK\\\\app\\\\\\(auth\\)\\\\login\\\\page.tsx' 'E:\\\\XP-POS-DESK\\\\app\\\\\\(auth\\)\\\\login\\\\LoginForm.tsx' -Force)",
-      "PowerShell(& \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\\\scratchpad\\\\guard.ps1\")"
+      "PowerShell(& \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\\\scratchpad\\\\guard.ps1\")",
+      "Bash(grep -n '^param\\\\|^\\\\[CmdletBinding\\\\|^# ──\\\\|^function \\\\|^$DataRoot\\\\|^$InstallDir\\\\|while\\\\|foreach' installer/scripts/watchdog.ps1)",
+      "Bash(grep -n '11. The way in\\\\|& $Services -Action Status -InstallDir $InstallDir' installer/scripts/provision.ps1)",
+      "Bash([ ! -f \"$f\" ])",
+      "Bash(f=\"C:/Users/DELL/AppData/Local/Temp/claude/e--XP-POS-DESK/473ff6e3-d27a-4ae0-95ea-1f1133100dab/tasks/bi824j446.output\"; grep -cE \"^    OK\" \"$f\"; echo \"--- FAIL/WARN ---\"; grep -E \"FAIL|WARN\" \"$f\"; echo \"--- RESULT ---\"; sed -n '/INSTALLER READY/,$p' \"$f\" | head -20)",
+      "Bash(command -v rclone)",
+      "Bash(rclone version *)",
+      "PowerShell(Get-Command rclone -ErrorAction SilentlyContinue | Select-Object Source; if \\(-not \\(Get-Command rclone -ErrorAction SilentlyContinue\\)\\) { Write-Output \"NOT FOUND on PATH\" })",
+      "PowerShell(winget source list 2>&1)",
+      "PowerShell(winget install --id Rclone.Rclone --exact --silent --accept-package-agreements --accept-source-agreements)",
+      "Bash(powershell.exe -NoProfile -Command '& { $env:Path = [System.Environment]::GetEnvironmentVariable\\('\\\\''Path'\\\\'','\\\\''Machine'\\\\''\\) + '\\\\'';'\\\\'' + [System.Environment]::GetEnvironmentVariable\\('\\\\''Path'\\\\'','\\\\''User'\\\\''\\); .\\\\installer\\\\build.ps1 -Publish -PublishDomain updates.xenithpulse.com -PublishNotes '\\\\''First public build: XenithPulse branding, guided first-run setup with sample menu and floor plan, one-click go-live, Connect Devices screen with QR code and xppos.local, fixed-address tool.'\\\\'' }')",
+      "Bash([ -f \"$f\" ])",
+      "Bash(f=\"C:/Users/DELL/AppData/Local/Temp/claude/e--XP-POS-DESK/473ff6e3-d27a-4ae0-95ea-1f1133100dab/tasks/blbnw0jc3.output\" *)",
+      "Bash(curl -sS -D - \"https://updates.xenithpulse.com/manifest.json\" -o /tmp/manifest_probe.txt -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\")",
+      "Bash(xxd)",
+      "Bash(curl -sS \"https://updates.xenithpulse.com/manifest.json?cb=$\\(date +%s\\)\" -o /tmp/manifest_after.txt)"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",
       "E:\\xp-thermal-service\\src\\utils",
       "E:\\xp-thermal-service\\src\\backup",
       "E:\\xp-thermal-service",
-      "C:\\Users\\DELL\\AppData\\Local\\Temp\\claude\\e--XP-POS-DESK\\66d7a33a-0a33-43c6-bab6-eeb61469078e\\tasks"
+      "C:\\Users\\DELL\\AppData\\Local\\Temp\\claude\\e--XP-POS-DESK\\66d7a33a-0a33-43c6-bab6-eeb61469078e\\tasks",
+      "C:\\Users\\DELL\\AppData\\Local\\Temp\\claude\\e--XP-POS-DESK\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\tasks",
+      "C:\\Users\\DELL\\AppData\\Roaming\\rclone"
     ]
   }
 }

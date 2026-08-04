@@ -48,7 +48,7 @@ Do them in numbered order. The numbering **is** the execution order.
 | [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **update delivery + diagnostics DONE — awaiting a published manifest; scopes B and D deliberately not built** |
 | [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
 | [`RESILIENCE-AND-QA.md`](RESILIENCE-AND-QA.md) | Self-healing services, watchdog, and the per-device QA check | medium | **built — `-Destructive` and reboot tests still to run on a real box** |
-| [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, and the first-run path | medium | **built — needs the on-box wizard walkthrough; contact details and the EULA still placeholders** |
+| [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons and wizard imagery, plus the whole first-run path: bootstrap, sample data, and finding the box on the network | large | **built — needs the on-box walkthrough; contact details and the EULA still placeholders** |
 
 **Why this order:**
 

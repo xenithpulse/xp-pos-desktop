@@ -78,10 +78,54 @@
 .PARAMETER OutDir
     Payload staging directory. Default: installer\payload
 
+.PARAMETER Publish
+    After a successful build, upload the installer and update the release
+    manifest on Cloudflare R2, so POS_UPDATE_URL (Phase 10) and the trial
+    download link on the website both serve this build.
+
+    Requires rclone (https://rclone.org) on PATH and a pre-configured remote -
+    see docs/handover/PHASE-10-REMOTE-UPDATE.md, "Publishing a release". This
+    script never sees a credential: the remote's access key lives in rclone's
+    own config or in RCLONE_CONFIG_* environment variables, never in this repo.
+
+    Order matters and is not arbitrary: the installer uploads BEFORE the
+    manifest is updated, so the manifest never points at a file that is not
+    there yet. A site checking for updates mid-publish either sees the OLD
+    manifest (old version, still valid) or the NEW one (new version, already
+    uploaded) - never a manifest pointing at 404.
+
+    Refuses to overwrite a version that is already published, because the
+    published .exe is content a site may already be mid-download of, and its
+    sha256 may already be cached in a manifest a site fetched a minute ago.
+    Bump the version to publish a new build, or pass -PublishForce for a
+    deliberate re-publish (a botched release, still on the same version).
+
+.PARAMETER PublishChannel
+    Manifest channel to update. Default: stable.
+
+.PARAMETER PublishDomain
+    The public hostname the bucket is served from (its R2 custom domain), e.g.
+    updates.xenithpulse.com. No default - a wrong domain here would publish a
+    manifest pointing at a URL nobody can reach, so it must be given
+    deliberately rather than guessed.
+
+.PARAMETER PublishBucket
+    R2 bucket name. Default: xp-pos-releases
+
+.PARAMETER PublishRemote
+    Name of the rclone remote to use. Default: r2pos
+
+.PARAMETER PublishNotes
+    Changelog text for this release, shown to the site in the update dialog.
+
+.PARAMETER PublishForce
+    Allow overwriting an already-published version. See -Publish.
+
 .EXAMPLE
     .\installer\build.ps1
     .\installer\build.ps1 -UpdateHashes
     .\installer\build.ps1 -SkipBuild
+    .\installer\build.ps1 -SignThumbprint <thumb> -Publish -PublishDomain updates.xenithpulse.com -PublishNotes "Fixes the QR connect screen"
 
 .NOTES
     ENCODING: UTF-8 WITH BOM, ASCII-only string literals - see services.ps1.
@@ -97,7 +141,14 @@ param(
     [string]$SignThumbprint,
     [string]$TimestampUrl = 'http://timestamp.digicert.com',
     [string]$IsccPath,
-    [string]$OutDir
+    [string]$OutDir,
+    [switch]$Publish,
+    [string]$PublishChannel = 'stable',
+    [string]$PublishDomain,
+    [string]$PublishBucket = 'xp-pos-releases',
+    [string]$PublishRemote = 'r2pos',
+    [string]$PublishNotes = '',
+    [switch]$PublishForce
 )
 
 $ErrorActionPreference = 'Stop'
@@ -605,6 +656,11 @@ foreach ($rel in @(
     # customer. Both are referenced by the scheduled task and by the handover
     # procedure, so shipping without either is a silent loss of a safety net.
     'scripts\watchdog.ps1', 'scripts\qa-check.ps1',
+    # connect-card.ps1 writes the one thing a customer cannot work out for
+    # themselves - the address their staff devices use. Both provision.ps1 and
+    # watchdog.ps1 shell out to it, so shipping without it leaves a site with no
+    # connection card and no way to notice the address has changed.
+    'scripts\connect-card.ps1',
     'config\env.template', 'config\mongod.cfg', 'config\Caddyfile.http',
     # UninstallDisplayIcon in Add/Remove Programs and the "XP POS" shortcut both
     # resolve against this at run time. Dropping it does not fail the build or
@@ -1161,5 +1217,217 @@ if ($SignThumbprint) {
     Write-Host "         Sign with:  .\installer\build.ps1 -SignThumbprint <thumbprint>" -ForegroundColor DarkGray
     Write-Host "         This signs the installer AND the three service\XPPOS-*.exe" -ForegroundColor DarkGray
     Write-Host "         wrappers (WinSW ships unsigned)." -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+<#
+    ── Publishing ─────────────────────────────────────────────────────────────
+    Everything below only runs with -Publish. It uploads THIS build's .exe to
+    R2 and then updates the release manifest to point at it. See the .PARAMETER
+    Publish block at the top of this file for the ordering guarantee and why
+    this script never handles an R2 credential directly.
+#>
+if ($Publish) {
+    Write-Step "Publishing to R2 ($PublishChannel channel)"
+
+    if (-not $SignThumbprint) {
+        Write-Warn "Publishing an UNSIGNED installer."
+        Write-Host "         Every site's updater refuses this by default (POS_UPDATE_ALLOW_UNSIGNED=false)." -ForegroundColor DarkGray
+        Write-Host "         Fine for a test channel with that flag deliberately set; not for stable." -ForegroundColor DarkGray
+    }
+
+    if (-not $PublishDomain) {
+        Write-Err "-PublishDomain is required with -Publish (e.g. updates.xenithpulse.com)."
+        Write-Host "         Refusing to guess: a wrong domain publishes a manifest pointing" -ForegroundColor DarkGray
+        Write-Host "         at a URL nobody can reach." -ForegroundColor DarkGray
+        exit 1
+    }
+
+    $rclone = Get-Command rclone -ErrorAction SilentlyContinue
+    if (-not $rclone) {
+        Write-Err "rclone not found on PATH."
+        Write-Host "         Get it from https://rclone.org/downloads/ and configure the" -ForegroundColor DarkGray
+        Write-Host "         '$PublishRemote' remote once - see docs/handover/PHASE-10-REMOTE-UPDATE.md." -ForegroundColor DarkGray
+        exit 1
+    }
+
+    <#
+        Every rclone call below goes through Invoke-Native (defined above, near
+        the top of this script), NOT a bare `&`. rclone writes to stderr even on
+        a successful run - progress lines, notices - and this script runs under
+        $ErrorActionPreference = 'Stop', which is exactly the combination that
+        turned a caddy.exe warning into an aborted install elsewhere in this
+        project. Invoke-Native is the fix that was written for that; using it
+        here rather than reinventing it is the point.
+    #>
+
+    # Confirms the remote is configured AND the credential in it actually works,
+    # before anything is uploaded. Failing here is cheap; failing after the exe
+    # upload but before the manifest update is the state that needs explaining.
+    $lsd = Invoke-Native -FilePath 'rclone' -Arguments @('lsd', "${PublishRemote}:")
+    if ($lsd.ExitCode -ne 0) {
+        Write-Err "rclone remote '$PublishRemote' is not configured or the credential does not work."
+        Write-Host "         Run: rclone config" -ForegroundColor DarkGray
+        Write-Host "         See docs/handover/PHASE-10-REMOTE-UPDATE.md, 'Publishing a release'." -ForegroundColor DarkGray
+        if ($lsd.StdErr) { Write-Host "         $($lsd.StdErr.Trim())" -ForegroundColor DarkGray }
+        exit 1
+    }
+
+    $exeRemote = "${PublishRemote}:$PublishBucket/releases/XP-POS-Setup-$appVersion.exe"
+    $manifestRemote = "${PublishRemote}:$PublishBucket/manifest.json"
+    $publicExeUrl = "https://$PublishDomain/releases/XP-POS-Setup-$appVersion.exe"
+    $publicManifestUrl = "https://$PublishDomain/manifest.json"
+
+    # Refuse to silently overwrite a version already out there. A site may be
+    # mid-download of it, or have this exact sha256 cached from a manifest it
+    # fetched a minute ago; replacing the bytes under an unchanged version
+    # number breaks both without either side finding out until an install fails
+    # signature verification.
+    #
+    # `rclone size` exits NON-ZERO when the path does not exist - the common
+    # case, a version being published for the first time - so the exit code is
+    # what gates parsing, not the presence of output.
+    $sizeCheck = Invoke-Native -FilePath 'rclone' -Arguments @('size', $exeRemote, '--json')
+    if ($sizeCheck.ExitCode -eq 0 -and $sizeCheck.StdOut.Trim()) {
+        $existingSize = $null
+        try { $existingSize = $sizeCheck.StdOut | ConvertFrom-Json } catch { $existingSize = $null }
+        if ($existingSize -and $existingSize.count -gt 0 -and -not $PublishForce) {
+            Write-Err "version $appVersion is already published on R2."
+            Write-Host "         Bump the version in package.json to publish a new build, or pass" -ForegroundColor DarkGray
+            Write-Host "         -PublishForce for a deliberate re-publish of this exact version." -ForegroundColor DarkGray
+            exit 1
+        }
+    }
+
+    # No live progress bar: rclone's --progress redraws a line in place, which
+    # means nothing sensible once its output is captured to a file instead of a
+    # console (see Invoke-Native). A wait message is what there is instead - a
+    # 118 MB upload over a modest connection is a few minutes, not a hang.
+    Write-Host "   Uploading installer ($([math]::Round($setupSize/1MB, 1)) MB)... this can take a few minutes" -ForegroundColor DarkGray
+    $upload = Invoke-Native -FilePath 'rclone' -Arguments @(
+        'copyto', $setupExe, $exeRemote,
+        '--header-upload', 'Cache-Control: public, max-age=31536000, immutable',
+        '--header-upload', 'Content-Type: application/octet-stream'
+    )
+    if ($upload.ExitCode -ne 0) {
+        Write-Err "Installer upload failed. The manifest was NOT touched, so no site sees this release."
+        if ($upload.StdErr) { Write-Host "         $($upload.StdErr.Trim())" -ForegroundColor DarkGray }
+        exit 1
+    }
+    Write-Ok "Installer uploaded to $exeRemote"
+
+    # Merge into whatever manifest is already live, so publishing 'stable' does
+    # not wipe out a 'beta' channel another release put there.
+    $manifest = $null
+    $catResult = Invoke-Native -FilePath 'rclone' -Arguments @('cat', $manifestRemote)
+    if ($catResult.ExitCode -eq 0 -and $catResult.StdOut.Trim()) {
+        try { $manifest = $catResult.StdOut | ConvertFrom-Json } catch { $manifest = $null }
+    }
+    if (-not $manifest) {
+        $manifest = [pscustomobject]@{ schema = 1; channels = [pscustomobject]@{} }
+    }
+    if (-not ($manifest.PSObject.Properties.Name -contains 'channels')) {
+        $manifest | Add-Member -NotePropertyName channels -NotePropertyValue ([pscustomobject]@{})
+    }
+
+    $entry = [pscustomobject]@{
+        version    = $appVersion
+        url        = $publicExeUrl
+        sha256     = $setupHash.ToLowerInvariant()
+        sizeBytes  = [int64]$setupSize
+        releasedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        notes      = $PublishNotes
+    }
+    if ($manifest.channels.PSObject.Properties.Name -contains $PublishChannel) {
+        $manifest.channels.$PublishChannel = $entry
+    } else {
+        $manifest.channels | Add-Member -NotePropertyName $PublishChannel -NotePropertyValue $entry
+    }
+
+    <#
+        `Set-Content -Encoding UTF8` writes UTF-8 WITH a byte-order mark in
+        Windows PowerShell 5.1 - the same gotcha this project already works
+        around for .env files (see Write-TextNoBom in provision.ps1). JSON
+        explicitly disallows a leading BOM (RFC 8259), and while Node's
+        fetch().text() strips it during UTF-8 decoding - verified live against
+        this exact manifest, so the app itself was never actually broken by
+        this - PowerShell's own ConvertFrom-Json is not so forgiving, which is
+        what turned this into a FAIL on the very first real publish. Writing
+        raw bytes with .NET's UTF8Encoding($false) is the BOM-less write.
+    #>
+    $manifestPath = Join-Path $env:TEMP "xp-pos-manifest-$([guid]::NewGuid()).json"
+    $manifestJson = $manifest | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($manifestPath, $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
+
+    Write-Host "   Uploading manifest..." -ForegroundColor DarkGray
+    $manifestUpload = Invoke-Native -FilePath 'rclone' -Arguments @(
+        'copyto', $manifestPath, $manifestRemote,
+        '--header-upload', 'Cache-Control: public, max-age=60',
+        '--header-upload', 'Content-Type: application/json; charset=utf-8'
+    )
+    Remove-Item $manifestPath -Force -ErrorAction SilentlyContinue
+    if ($manifestUpload.ExitCode -ne 0) {
+        Write-Err "Manifest upload failed. The installer IS live at $publicExeUrl but no manifest points at it yet."
+        Write-Host "         Re-run with -Publish once the R2 issue is fixed - the exe upload will be skipped" -ForegroundColor DarkGray
+        Write-Host "         (already present) and only the manifest step will retry." -ForegroundColor DarkGray
+        if ($manifestUpload.StdErr) { Write-Host "         $($manifestUpload.StdErr.Trim())" -ForegroundColor DarkGray }
+        exit 1
+    }
+    Write-Ok "Manifest updated at $manifestRemote"
+
+    <#
+        Verify from the OUTSIDE. Everything above proves rclone believes the
+        upload succeeded; it does not prove a site can actually fetch it - R2
+        custom domains route through Cloudflare's cache and edge config, which
+        is one more hop that can be wrong in a way rclone never sees. A cache
+        query string defeats any edge cache so this reads what was JUST written,
+        not a stale copy from before this publish.
+    #>
+    Write-Step "Verifying the published release is actually reachable"
+    try {
+        $verifyUrl = "$publicManifestUrl`?cb=$([guid]::NewGuid().ToString('N'))"
+        $resp = Invoke-WebRequest -Uri $verifyUrl -UseBasicParsing -TimeoutSec 20
+        # Defensive: strip a leading BOM before parsing. The write side above is
+        # now BOM-less, but this check exists to catch reachability problems,
+        # not to trust that every future write path stays that way - a stray
+        # BOM should not make a correctly-published release report as FAIL.
+        $manifestText = $resp.Content.TrimStart([char]0xFEFF)
+        $fetched = $manifestText | ConvertFrom-Json
+        $liveEntry = $fetched.channels.$PublishChannel
+        if ($liveEntry.sha256 -ne $entry.sha256 -or $liveEntry.version -ne $entry.version) {
+            Write-Err "The manifest at $publicManifestUrl does not match what was just published."
+            Write-Host "         expected version $($entry.version) / $($entry.sha256)" -ForegroundColor DarkGray
+            Write-Host "         got      version $($liveEntry.version) / $($liveEntry.sha256)" -ForegroundColor DarkGray
+            Write-Host "         This can be R2/Cloudflare cache catching up - re-check in a minute." -ForegroundColor DarkGray
+            exit 1
+        }
+        Write-Ok "Manifest is live and correct: $publicManifestUrl"
+    } catch {
+        Write-Err "Could not fetch $publicManifestUrl to verify: $($_.Exception.Message)"
+        Write-Host "         Check the R2 custom domain is attached and DNS has propagated." -ForegroundColor DarkGray
+        exit 1
+    }
+
+    try {
+        $head = Invoke-WebRequest -Uri $publicExeUrl -Method Head -UseBasicParsing -TimeoutSec 20
+        $liveLength = [int64]$head.Headers['Content-Length']
+        if ($liveLength -ne $setupSize) {
+            Write-Err "The published installer is $liveLength bytes; expected $setupSize."
+            exit 1
+        }
+        Write-Ok "Installer is live and the correct size: $publicExeUrl"
+    } catch {
+        Write-Err "Could not HEAD $publicExeUrl to verify: $($_.Exception.Message)"
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "  ============================================================" -ForegroundColor Green
+    Write-Host "   PUBLISHED" -ForegroundColor Green
+    Write-Host "  ============================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host ("   channel  : {0}" -f $PublishChannel) -ForegroundColor DarkGray
+    Write-Host ("   manifest : {0}" -f $publicManifestUrl) -ForegroundColor DarkGray
+    Write-Host ("   download : {0}" -f $publicExeUrl) -ForegroundColor DarkGray
     Write-Host ""
 }

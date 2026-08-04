@@ -2,8 +2,11 @@
 
 **Status:** built. `npx tsc --noEmit` clean, `installer\build.ps1` green,
 installer compiled and its icon verified in the `.exe`.
-**Not yet verified by execution:** the wizard pages and the finish page have not
-been seen on a real install. See "What still needs a real box" at the bottom.
+**Not yet verified by execution:** everything that needs a real install — the
+wizard pages, the finish page, first-run bootstrap against an empty database,
+mDNS resolution from a phone, and the watchdog's address-drift repair. See
+"What still needs a real box" at the bottom. Several of these are the kind that
+only fail on a customer's network.
 **Depends on:** nothing technical.
 
 > **Code signing is NOT in this document.** It is a security and trust
@@ -36,6 +39,11 @@ all**, for reasons that had nothing to do with how it looked:
    `provision.ps1`, into a console `setup.iss` launches with `SW_HIDE`.
 3. **The port is not fixed.** Provisioning moves off 8080 when it is taken, so
    even guessing was unreliable.
+4. **Neither is the IP.** It comes from the router by DHCP, so a power cut or a
+   router swap silently invalidates every printed address and every tablet
+   bookmark.
+5. **A working login led to an empty POS.** No menu, no tables — so there was
+   nothing to click, and no way to tell whether the thing worked.
 
 So this phase is branding *and* the path from double-clicking the installer to
 taking a first order.
@@ -111,17 +119,72 @@ which makes a port change self-healing instead of a support call.
   guarded by `PosIsReachable`, so a failed provisioning offers the log instead
   of a browser error.
 
-### 4. First run, and the security fixes that came with it
+### 4. First run: preloaded, and self-closing
 
-- **`/setup`** (`app/(auth)/setup/`) creates the owner account when the admins
-  collection is empty. It is self-closing: once an account exists it redirects
-  to login forever. Not behind `ENABLE_SETUP_ENDPOINTS` — that flag guards
-  things which stay dangerous while switched on; this disarms itself, and making
-  a customer edit a `.env` before they can log in is the problem being solved.
-- **`login/page.tsx` is now a server component** that redirects a
-  never-configured box to `/setup`. The form moved to `LoginForm.tsx`.
-  `hasAnyAdmin()` caches only the *positive* answer — caching a "no" would
-  reopen account creation whenever Mongo hiccuped.
+A fresh box bootstraps itself (`lib/firstRun.ts`, called from
+`instrumentation.ts` at boot and from the login page as a fallback):
+
+- creates **`admin` / `admin`** as `super_admin`
+- loads the sample menu, ingredients and floor plan **in the background**, so
+  the site answers within a second — provisioning polls `/login` to decide
+  whether the install worked, and blocking that on a few hundred upserts would
+  make a good install look like a failed one
+
+The login screen displays those credentials while they are still in use, with a
+one-click sign-in button. There is nothing to read and nothing to type.
+
+**The known password is bounded, not ignored.** Removing the sample data —
+`Server Management → Sample Data`, i.e. the act of going live — *requires*
+setting a real password first, and refuses otherwise
+(`app/api/admin/demo-data/route.ts`). That is the one moment where demanding a
+password is obviously reasonable rather than an interruption: earlier gets
+clicked past, later never happens. The password is changed **before** anything
+is deleted, so a failure leaves a working demo rather than a stripped site still
+on a known password.
+
+`/setup` and `/api/setup/owner` were built first, then removed — a form asking a
+stranger to invent credentials is friction the bootstrap does not need.
+
+### 5. Sample data, and one definition of it
+
+`lib/demo-data/` is the single implementation:
+
+- `menu.ts` — categories, ingredients, menu items, keyed by trimmed **name**
+- `tables.ts` — two sections and 14 tables, hand-positioned (window row, four-tops,
+  two large rounds, a family oval, a terrace) because a grid of identical squares
+  reads as test data
+
+Seed and removal are keyed identically, which is what makes removal safe on a POS
+already in use: anything the owner created has a name or table number not in the
+bundled set, so it is never touched. A sample table with an **open session** is
+left in place and reported, rather than orphaning a live order.
+
+`pos-data` and `pos-data-undo` are now thin wrappers over that module (and are
+POST, not GET). Two copies of "what counts as sample data" would drift, and
+"remove the sample data" would start leaving some behind.
+
+### 6. The address problem
+
+The port is fixed at install; the IP is not — DHCP moves it, and every
+bookmarked tablet breaks with a timeout that explains nothing.
+
+- **`lib/net/mdns.ts`** answers mDNS for `xppos.local`, resolving the address
+  **per query** so the name follows the machine. `reuseAddr` is load-bearing:
+  Windows 10+ runs its own responder on 5353 and binding fails without it.
+  provision.ps1 opens UDP 5353. It is an *extra* address — mDNS is not universal.
+- **`lib/net/addresses.ts`** is the one place that answers "where is this POS",
+  reading the port from `.env` and ranking interfaces so a Hyper-V switch does
+  not outrank the Wi-Fi adapter.
+- **Connect Devices** (`features/server-management/components/ConnectDevices.tsx`)
+  — live address as an inline-SVG QR, re-checked every 30s, printable.
+- **`installer/scripts/connect-card.ps1`** writes the card and the shortcut, and
+  is called by *both* provision.ps1 and watchdog.ps1. The watchdog compares line
+  1 of the card against the current address and rewrites it when they differ, so
+  a router swap self-heals within one cycle. It only rewrites when there *is* a
+  current address — a box temporarily offline keeps its last known good one.
+
+### 7. The security fixes that came with all this
+
 - **`seed-admin` no longer invents credentials.** POST only, actually guarded,
   caller supplies the password, and it will not overwrite an existing account
   (the old version used `upsert:true`, so calling it silently reset a real
@@ -134,7 +197,7 @@ which makes a port change self-healing instead of a support call.
   existing `.env` value": the merge only adds absent keys, so every site
   provisioned under the old template would have kept it on forever.
 
-### 5. Build assertions
+### 8. Build assertions
 
 `build.ps1` stages `branding\XP-POS.ico` into the payload and asserts:
 
@@ -164,10 +227,17 @@ describes the product accurately. It is not legal advice. Two
 `[REVIEW BEFORE SHIPPING]` blocks — governing law, and the legal entity name and
 address — must be filled in. The build warns until they are.
 
-**No in-app connect card.** Staff devices are onboarded by typing the address
-from `connect-info.txt`. A QR code on a page in `server-management` would be
-better and needs no new dependency if drawn as SVG. Not built; not required for
-the flow to work.
+**`admin` / `admin` is a real, accepted tradeoff.** A known credential exists on
+a LAN-facing box from install until the owner goes live. It was chosen over a
+setup form because the alternative — a stranger blocked at a login screen on a
+machine they just plugged in — was judged worse, and because the window is
+bounded by a gate on the one action that ends it. If a site is left in demo
+state for months, that window is months. The login screen, the connection card,
+the provisioning output and a banner in Server Management all say so.
+
+**Two new dependencies.** `qrcode-generator` (zero deps, MIT) and
+`multicast-dns`. The latter has no typings; `types/multicast-dns.d.ts` declares
+only the surface used.
 
 ---
 
@@ -180,7 +250,10 @@ the flow to work.
 - [ ] Wizard shows XenithPulse imagery and wording — **needs a real install**
 - [ ] Add/Remove Programs shows the icon and XenithPulse as publisher
 - [ ] Start-menu and desktop shortcuts show the product icon and open the POS
-- [ ] `/setup` creates the owner account on a genuinely empty database
+- [ ] Bootstrap creates `admin`/`admin` and the sample data on an empty database
+- [ ] Going live refuses without a password, then works with one
+- [ ] `xppos.local` resolves from a phone on the same network
+- [ ] The watchdog repairs the connection card after an IP change
 - [ ] Signing (Phase 9) confirmed still in place after the `setup.iss` changes
 
 ## What still needs a real box
@@ -192,12 +265,24 @@ that way; the list below could not be, because it needs an actual install:
    finish, and the badge top-right on the middle pages.
 2. Check the finish page shows a real `http://<lan-ip>:<port>` address, and that
    "Open XP POS now" opens it.
-3. Open that address from a *different* device. It must land on `/setup`.
-4. Create the owner account. Confirm `/setup` then redirects to login, and that
-   the credentials work.
-5. Check Add/Remove Programs: icon, publisher, and that the Readme link opens
+3. Open that address from a *different* device. Sign in with `admin` / `admin`
+   using the one-click button.
+4. Confirm the sample menu and the 14-table floor plan are there and usable —
+   open a table, add items, take an order.
+5. **Connect Devices**: scan the QR from a phone. Check the address matches.
+6. **`http://xppos.local:<port>`** from an iPhone or a Windows 11 laptop. This
+   is the one piece most likely to fail in the field — UDP 5353 binding
+   alongside Windows' own responder, and access points that block multicast
+   between clients.
+7. **Sample Data → go live.** Confirm it *refuses* without a password, then
+   succeeds with one, then that `admin`/`admin` no longer works and the new
+   password does. Confirm the login hint card is gone.
+8. **Change the IP** (reboot the router, or reassign it) and wait one watchdog
+   cycle. `connect-info.txt` line 1 must update itself.
+9. Check Add/Remove Programs: icon, publisher, and that the Readme link opens
    `connect-info.txt`.
-6. Uninstall. Confirm the desktop and Start-menu shortcuts are gone.
+10. Uninstall. Confirm the desktop and Start-menu shortcuts are gone, and that
+    **both** firewall rules (TCP port, UDP 5353) were removed.
 
 ## Watch out for
 
@@ -210,6 +295,14 @@ that way; the list below could not be, because it needs an actual install:
   silently.
 - `redirect()` in a Next server component works by **throwing**. Calling it
   inside a `try` whose `catch` swallows errors silently disables the redirect.
-  Both first-run redirects call it outside the `try` for this reason.
+- **PowerShell unrolls arrays on return.** `return $bytes` from a function hands
+  back `Object[]`, `BinaryWriter` then misses its `byte[]` overload and writes
+  one byte per call. That produced a 125-byte `.ico` that Windows rendered as
+  nothing. `return ,$bytes` is the fix — see `make-branding.ps1`.
+- **`Parameters<>` on an overloaded function resolves to the LAST signature.**
+  Deriving the mDNS query type that way silently produced `unknown`; the shape
+  is restated in `lib/net/mdns.ts` instead.
+- `reuseAddr` is not optional for mDNS on Windows. Windows 10+ already holds
+  UDP 5353, so binding without it fails on every box this ships to.
 - Do not sign inside `[Files]`; Inno compresses whatever it is given. Sign the
   wrappers in the staging step.

@@ -1,37 +1,34 @@
 /**
  * POS Data Injection — UNDO
  *
- * Reverses the demo data created by `GET /api/injections/pos-data`. It removes
- * ONLY the seeded demo records — matched against the exact category/menu-item
- * names that ship in the bundled JSON — so it never touches anything the
- * operator created by hand. Deleting the menu items also clears their (local)
- * image references; the static image files under public/menu-item-images are
- * repo assets and are intentionally left in place so a re-inject works offline.
+ * Reverses what `POST /api/injections/pos-data` loaded. It removes ONLY the
+ * seeded records — matched against the exact names that ship in the bundled
+ * JSON, and the exact table numbers in lib/demo-data/tables.ts — so it never
+ * touches anything the operator created by hand. The static image files under
+ * public/menu-item-images are repo assets and stay put, so re-seeding still
+ * works offline.
  *
- * GET /api/injections/pos-data-undo                 → remove demo categories + menu items
- * GET /api/injections/pos-data-undo?ingredients=1   → also remove the seeded ingredients
+ * The implementation lives in lib/demo-data/. See the note in pos-data/route.ts
+ * for why.
+ *
+ * NOTE: this is the support-tool entry point, behind ENABLE_SETUP_ENDPOINTS.
+ * The one a customer uses is POST /api/admin/demo-data, which is authenticated
+ * and additionally requires the default password to have been changed first.
+ *
+ * POST /api/injections/pos-data-undo                 → remove sample menu + tables
+ * POST /api/injections/pos-data-undo?ingredients=1   → also remove the seeded ingredients
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { guardInjections } from "@/lib/injectionsGuard";
 import { mongooseConnect } from "@/lib/mongoose";
-import { CategoryModel, MenuItemModel } from "@/models/factories/Menu";
-import { IngredientModel } from "@/models/factories/Ingredients";
-import categoriesData from "@/public/test.categories.json";
-import ingredientsData from "@/public/ingredients.json";
-import menuItemsData from "@/public/menuitems.json";
-import { RawCategory, RawMenuItem } from "@/lib/helpers/injection";
+import { removeMenuData } from "@/lib/demo-data/menu";
+import { removeTableData } from "@/lib/demo-data/tables";
+import { updateSetupState } from "@/models/factories/SetupState";
 
-interface IngredientPayload {
-  name: string;
-  stock: number;
-  unit: string;
-}
+export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  // Setup endpoints are destructive and unauthenticated by design, so they must
-  // be unreachable in normal operation. This guard was written for that and then
-  // not wired up here - see lib/injectionsGuard.ts.
+export async function POST(request: NextRequest) {
   const denied = guardInjections(request);
   if (denied) return denied;
 
@@ -39,40 +36,30 @@ export async function GET(request: NextRequest) {
 
   try {
     const conn = await mongooseConnect();
-    const Category = CategoryModel(conn);
-    const MenuItem = MenuItemModel(conn);
-    const Ingredient = IngredientModel(conn);
 
-    const alsoIngredients =
-      request.nextUrl.searchParams.get("ingredients") === "1" ||
-      request.nextUrl.searchParams.get("ingredients") === "true";
+    const param = request.nextUrl.searchParams.get("ingredients");
+    const includeIngredients = param === "1" || param === "true";
 
-    // The inject upserts by trimmed name, so reverse it by the same key.
-    const categoryNames = (categoriesData as RawCategory[]).map((c) => c.name.trim());
-    const menuItemNames = (menuItemsData as RawMenuItem[]).map((m) => m.name.trim());
-    const ingredientNames = (ingredientsData as IngredientPayload[]).map((i) => i.name.trim());
+    const menu = await removeMenuData(conn, { includeIngredients });
+    const tables = await removeTableData(conn);
 
-    // Delete menu items first (they reference categories).
-    const itemsResult = await MenuItem.deleteMany({ name: { $in: menuItemNames } });
-    const categoriesResult = await Category.deleteMany({ name: { $in: categoryNames } });
-
-    let ingredientsResult: { deletedCount?: number } = { deletedCount: 0 };
-    if (alsoIngredients) {
-      ingredientsResult = await Ingredient.deleteMany({ name: { $in: ingredientNames } });
-    }
-
-    const duration = Date.now() - startTime;
+    await updateSetupState(conn, { demoDataLoaded: false });
 
     return NextResponse.json({
       success: true,
-      message: "POS demo data removed",
-      duration: `${duration}ms`,
+      message: "Sample data removed",
+      duration: `${Date.now() - startTime}ms`,
       summary: {
-        menuItems: `${itemsResult.deletedCount ?? 0} of ${menuItemNames.length} removed`,
-        categories: `${categoriesResult.deletedCount ?? 0} of ${categoryNames.length} removed`,
-        ingredients: alsoIngredients
-          ? `${ingredientsResult.deletedCount ?? 0} of ${ingredientNames.length} removed`
+        menuItems: `${menu.menuItems} removed`,
+        categories: `${menu.categories} removed`,
+        ingredients: includeIngredients
+          ? `${menu.ingredients} removed`
           : "left intact (pass ?ingredients=1 to remove)",
+        tables: `${tables.tables} removed, ${tables.sections} sections removed`,
+        tablesInUse:
+          tables.inUse > 0
+            ? `${tables.inUse} left in place - they are occupied or have an open session`
+            : "none",
       },
     });
   } catch (err) {

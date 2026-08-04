@@ -324,6 +324,95 @@ before the update channel existed would have been the wrong order.
 channel into every customer's payment system carries a liability profile that is
 not worth it while the sites already have AnyDesk.
 
+## Publishing a release
+
+The manifest is a static JSON file on a host XenithPulse controls (see
+`manifest.ts`'s header). It needs no server of its own, which means hosting is a
+one-time setup rather than something to build. Chosen host: **Cloudflare R2** —
+no egress fees, which is the entire cost driver for a 118 MB binary served to
+every site on every check and every trial download from the website.
+
+### One-time account setup (Cloudflare dashboard)
+
+1. **Enable R2** on the Cloudflare account. Cloudflare may ask for a payment
+   method even to use the free tier (10 GB storage, 10M reads and 1M writes a
+   month, all free) — that is normal, it is not a paid feature gate.
+2. **Create a bucket.** Name: `xp-pos-releases`.
+3. **Attach a custom domain** to the bucket: bucket → Settings → Custom Domains
+   → add e.g. `updates.xenithpulse.com`. This needs `xenithpulse.com`'s DNS on
+   the same Cloudflare account (at least the zone; the site itself can live
+   anywhere). This is what makes egress free and gives the bucket real HTTPS —
+   the R2.dev default domain works too but is rate-limited and meant for testing.
+4. **Create an API token** scoped to just this bucket: R2 → Manage R2 API
+   Tokens → Create API Token → Permissions: **Object Read & Write**, scoped to
+   `xp-pos-releases`. This yields an Access Key ID, a Secret Access Key, and the
+   account's S3-compatible endpoint (`https://<account_id>.r2.cloudflarestorage.com`).
+   **Do not scope this token account-wide** — a leaked bucket-scoped token can
+   only touch releases; an account-wide one can touch everything else in R2 too.
+
+### One-time local setup (the machine that runs `build.ps1 -Publish`)
+
+5. Install [rclone](https://rclone.org/downloads/) — a single executable, add it
+   to PATH.
+6. Configure a remote named **`r2pos`** (the name `build.ps1` expects by
+   default — override with `-PublishRemote` if you name it differently):
+
+   ```
+   rclone config
+   ```
+
+   Choose `s3`, provider `Cloudflare`, paste the Access Key ID / Secret Access
+   Key / endpoint from step 4, and leave everything else at its default. This is
+   the ONLY place the credential is ever stored — in rclone's own config
+   (`%USERPROFILE%\.config\rclone\rclone.conf` by default), never in this repo,
+   never in an environment variable that ends up in a log. `build.ps1` never
+   reads or handles the credential itself; it only invokes `rclone`.
+
+### Publishing
+
+```powershell
+.\installer\build.ps1 -SignThumbprint <thumb> -Publish `
+    -PublishDomain updates.xenithpulse.com `
+    -PublishNotes "What changed in this release"
+```
+
+What it does, in order, and why the order is not arbitrary:
+
+1. Refuses to overwrite a version already published (pass `-PublishForce` for a
+   deliberate re-publish of the same version — a botched release, not a new one).
+2. Uploads the `.exe` to `releases/XP-POS-Setup-<version>.exe` with
+   `Cache-Control: public, max-age=31536000, immutable` — the filename carries
+   the version, so the object at that path never changes.
+3. **Only after the upload succeeds**, downloads whatever manifest is currently
+   live, updates just the one channel (so publishing `stable` cannot wipe out a
+   `beta` entry another release put there), and uploads it back with
+   `Cache-Control: public, max-age=60`.
+4. Fetches the manifest and HEADs the `.exe` back from the public URLs — not
+   from R2 directly, through the actual domain a site will use — and confirms
+   the sha256, version and size match what was just published. rclone believing
+   an upload succeeded is not the same claim as a site being able to fetch it;
+   this is the difference between the two.
+
+The exe-before-manifest ordering means a site checking mid-publish sees either
+the OLD manifest (still valid, still downloadable) or the NEW one (already
+uploaded) — never a manifest pointing at a 404.
+
+### Rolling out to sites
+
+`POS_UPDATE_URL` is per-site, read from that site's `.env`. Nothing sets it
+automatically:
+
+1. After the first publish, verify the manifest and the download by hand from a
+   browser, not just from the build's own success message.
+2. Set `POS_UPDATE_URL=https://updates.xenithpulse.com/manifest.json` on ONE
+   pilot site and watch a real update happen there before it goes anywhere else.
+3. Once trusted, add it to `config/env.template` (`.env.example`) as the default
+   for new installs. Existing sites pick it up via the "add missing keys on
+   upgrade" merge in `provision.ps1` — it will NOT retroactively enable itself
+   on a box that already has an `.env` with the key present and blank, because
+   that merge only adds keys that are entirely absent, never overwrites one a
+   site already has.
+
 ## Before the first real update ships
 
 1. **Buy the Phase 9 certificate.** `POS_UPDATE_ALLOW_UNSIGNED` exists only to

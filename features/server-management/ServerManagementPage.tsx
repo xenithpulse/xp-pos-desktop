@@ -23,9 +23,13 @@ import NetworkSettings from "./components/NetworkSettings";
 import UpdateManager from "./components/UpdateManager";
 import Diagnostics from "./components/Diagnostics";
 import LicenseManager from "./components/LicenseManager";
+import ConnectDevices from "./components/ConnectDevices";
+import DemoDataManager from "./components/DemoDataManager";
 
 type TabType =
   | "overview"
+  | "connect"
+  | "sample-data"
   | "router"
   | "connections"
   | "backups"
@@ -210,6 +214,11 @@ export default function ServerManagementPage() {
           <div className="flex gap-1 overflow-x-auto">
             {[
               { id: "overview" as const, label: "Overview" },
+              // Immediately after Overview on purpose: "what address do the
+              // tablets use" is the most common question this dashboard is
+              // opened to answer, and it used to have no answer here at all.
+              { id: "connect" as const, label: "Connect Devices" },
+              { id: "sample-data" as const, label: "Sample Data" },
               { id: "router" as const, label: "WiFi Router" },
               { id: "connections" as const, label: "Active Connections" },
               { id: "backups" as const, label: "Backups" },
@@ -246,6 +255,8 @@ export default function ServerManagementPage() {
             backupBusy={backupBusy}
           />
         )}
+        {activeTab === "connect" && <ConnectDevices />}
+        {activeTab === "sample-data" && <DemoDataManager />}
         {activeTab === "router" && <RouterManagement config={config} onUpdate={fetchConfig} />}
         {activeTab === "connections" && (
           <ConnectionsManager config={config} onUpdate={fetchConfig} />

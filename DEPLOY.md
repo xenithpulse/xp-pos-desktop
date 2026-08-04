@@ -66,28 +66,73 @@ It must serve the login page. If it does not, run the status check below.
 
 ---
 
-## First run: the owner account
+## First run
 
 Nothing to configure. Open the address the installer showed on its last page —
 it is also saved in `C:\ProgramData\XP POS\connect-info.txt` and on the Start
 menu under **XP POS → Getting Started**.
 
-The first person to open the POS is sent to `/setup` and asked to choose a
-username and password. That account is the `super_admin` owner. Once it exists,
-`/setup` redirects to the login page and cannot be used again.
+Sign in with **`admin` / `admin`**. The login screen shows those credentials and
+offers a one-click sign-in button while they are still in use.
 
-**Do this before leaving the site, and before handing out staff devices.** There
-is no default password, and whoever reaches the POS first is the one who gets
-asked to create the owner.
+The box arrives already loaded with a sample menu, ingredients and a floor plan
+(14 tables across two sections), so the POS is usable and explorable from the
+first minute rather than an empty shell.
 
-Staff accounts are then created in-app: sign in as the owner, then **Admin →
-Users**.
+### Going live — this is the step that matters
+
+**Server Management → Sample Data → Remove sample data and go live.**
+
+That one action does two things together, deliberately:
+
+1. Sets a real owner password. It is **required** — the removal is refused while
+   the account is still on `admin`.
+2. Removes the sample menu, ingredients, categories and tables.
+
+Removing the sample data is the moment a demo becomes a real restaurant, and it
+is the only moment where demanding a password is obviously reasonable rather
+than an interruption. Earlier gets clicked past; later never happens.
+
+Only the seeded records are removed — matched by the exact names in the bundled
+JSON and the exact table numbers in `lib/demo-data/tables.ts`. Anything the
+owner created is untouched, and a sample table with an open session is kept
+until that session closes.
+
+> **Until that step is done, anyone on the network can sign in as the owner.**
+> The login screen, the connection card and a banner in Server Management all
+> say so. Do it before real trade.
+
+Staff accounts are created in-app afterwards: **Admin → Users**.
+
+## When the address changes
+
+The port is fixed at install time, but the IP comes from the router by DHCP — so
+a power cut or a router swap moves it, and every bookmarked tablet breaks with a
+timeout that explains nothing. Three things address this:
+
+- **`http://xppos.local:<port>`** — the app answers mDNS queries for that name
+  with its current address, re-read per query, so the name follows the machine.
+  Works on iOS, iPadOS, macOS, Windows 11 and Android 12+. Not universal, so it
+  is an *extra* address, never the only one.
+- **Server Management → Connect Devices** — the live address as a big QR code,
+  re-checked every 30 seconds, and printable for the wall by the pass.
+- **The watchdog** notices when the machine's address has changed and rewrites
+  `connect-info.txt` and the shortcut within one cycle.
+
+The permanent fix is still a DHCP reservation on the router; the Connect Devices
+screen says so, in those words.
 
 ### `/api/injections/*` is not part of this
 
 Those endpoints reset order status, wipe and re-seed menu data, and create admin
 accounts. They ship **off** (`ENABLE_SETUP_ENDPOINTS=false`) and provisioning
 turns them off on any older box that still has them on.
+
+The sample data a customer sees does **not** come from these. First-run
+bootstrap loads it directly (`lib/firstRun.ts` → `lib/demo-data/`), and the
+Sample Data screen removes it. The injection routes are thin support-tool
+wrappers over the same module, so the two cannot disagree about what counts as
+sample data.
 
 They used to be required — `/api/injections/seed-admin` created a
 `reviewer` / `reviewer@123` super_admin, on an unauthenticated GET, and it did
