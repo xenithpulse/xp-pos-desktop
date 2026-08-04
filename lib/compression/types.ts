@@ -87,6 +87,7 @@ export interface CompressedOrder {
   da: number;    // discountAmount
   sc?: number;   // serviceCharge
   df?: number;   // deliveryFee
+  rn?: string;   // riderName
   tp?: number;   // tipAmount
   gt: number;    // grandTotal
 
@@ -265,6 +266,7 @@ export interface HumanReadableOrder {
   discountAmount: number;
   serviceCharge?: number;
   deliveryFee?: number;
+  riderName?: string;
   tipAmount?: number;
   grandTotal: number;
   adjustments: HumanReadableAdjustment[];

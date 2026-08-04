@@ -9,6 +9,7 @@ import { useOrderEditorState } from './useOrderEditorState';
 import TableSwitcher from './TableSwitcher';
 import TakeawayClientPanel from './TakeawayClientPanel';
 import TakeawayOrderSwitcher from './TakeawayOrderSwitcher';
+import DeliveryDetailsBar from './DeliveryDetailsBar';
 import OrderItemsList from './OrderItemsList';
 import OrderFooter from './OrderFooter';
 import PaymentDrawer from './PaymentDrawer';
@@ -23,17 +24,17 @@ interface OrderEditorFullProps extends OrderEditorProps {
   tables?: ITable[];
   /** Available sections / zones */
   sections?: ITableSection[];
-  /** Mode: 'dine-in' shows table switcher, 'takeaway' hides it */
-  mode?: 'dine-in' | 'takeaway';
-  /** Active takeaway orders (for the order switcher) — only used in takeaway mode */
+  /** Mode: 'dine-in' shows table switcher, 'takeaway'/'delivery' show the client panel instead */
+  mode?: 'dine-in' | 'takeaway' | 'delivery';
+  /** Active takeaway/delivery orders (for the order switcher) — only used outside dine-in */
   takeawayOrders?: Order[];
-  /** Whether takeaway orders are still loading */
+  /** Whether takeaway/delivery orders are still loading */
   isTakeawayLoading?: boolean;
-  /** Called when switching to a different takeaway order */
+  /** Called when switching to a different takeaway/delivery order */
   onTakeawaySwitch?: (order: Order) => void;
-  /** Called when starting a fresh new takeaway order */
+  /** Called when starting a fresh new takeaway/delivery order */
   onTakeawayNew?: () => void;
-  /** Called when a customer is selected/created and a new takeaway order should be initiated */
+  /** Called when a customer is selected/created and a new takeaway/delivery order should be initiated */
   onTakeawayInitiate?: (customerId: string) => void;
 }
 
@@ -167,8 +168,8 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
             />
           )}
 
-          {/* Client Details (takeaway mode) */}
-          {mode === 'takeaway' && (
+          {/* Client Details (takeaway / delivery mode) */}
+          {(mode === 'takeaway' || mode === 'delivery') && (
             <>
               <TakeawayOrderSwitcher
                 orders={takeawayOrders}
@@ -180,6 +181,7 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
                   onTakeawayNew?.();
                 }}
                 isLoading={isTakeawayLoading}
+                label={mode === 'delivery' ? 'Delivery Orders' : 'Takeaway Orders'}
               />
               <TakeawayClientPanel
                 customer={takeawayCustomer}
@@ -188,6 +190,12 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
                 selectedAddressId={selectedAddressId}
                 onAddressSelect={setSelectedAddressId}
               />
+              {mode === 'delivery' && (
+                <DeliveryDetailsBar
+                  activeOrder={state.activeOrder}
+                  onSaved={() => state.refreshOrder()}
+                />
+              )}
             </>
           )}
 

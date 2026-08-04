@@ -84,6 +84,7 @@ export default function ManagementHubPage() {
     showFloorPlan: true,
     showOrders: true,
     showTakeaway: true,
+    showDelivery: true,
     showOrderList: true,
     autoCloseOnPayment: false,
     autoPrintKOT: false,
@@ -115,9 +116,10 @@ export default function ManagementHubPage() {
     if (!hub.showFloorPlan)  hidden.push('floor-plan');
     if (!hub.showOrders)     hidden.push('orders');
     if (!hub.showTakeaway)   hidden.push('takeaway');
+    if (!hub.showDelivery)   hidden.push('delivery');
     if (!hub.showOrderList)  hidden.push('order-list');
     return hidden;
-  }, [hub.showFloorPlan, hub.showOrders, hub.showTakeaway, hub.showOrderList]);
+  }, [hub.showFloorPlan, hub.showOrders, hub.showTakeaway, hub.showDelivery, hub.showOrderList]);
 
   // Set the default tab from hub settings on first load
   const defaultTabApplied = useRef(false);
@@ -163,6 +165,10 @@ export default function ManagementHubPage() {
   // Takeaway State
   const [takeawayOrders, setTakeawayOrders] = useState<Order[]>([]);
   const [isTakeawayLoading, setIsTakeawayLoading] = useState(true);
+
+  // Delivery State
+  const [deliveryOrders, setDeliveryOrders] = useState<Order[]>([]);
+  const [isDeliveryLoading, setIsDeliveryLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderViewMode, setOrderViewMode] = useState<'grid' | 'list'>('grid');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
@@ -180,11 +186,11 @@ export default function ManagementHubPage() {
   // both order:completed + table:updated), we batch the refreshes so only
   // one fetch per resource fires within a 300ms window.
   // Uses refs so it never depends on fetch callbacks changing.
-  const pendingRefresh = useRef<{ tables: boolean; orders: boolean; stats: boolean; sections: boolean; takeaway: boolean }>({
-    tables: false, orders: false, stats: false, sections: false, takeaway: false,
+  const pendingRefresh = useRef<{ tables: boolean; orders: boolean; stats: boolean; sections: boolean; takeaway: boolean; delivery: boolean }>({
+    tables: false, orders: false, stats: false, sections: false, takeaway: false, delivery: false,
   });
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fetchRef = useRef({ fetchTables: async () => {}, fetchSections: async () => {}, fetchOrders: async () => {}, fetchOrderStats: async () => {}, fetchTakeawayOrders: async () => {} });
+  const fetchRef = useRef({ fetchTables: async () => {}, fetchSections: async () => {}, fetchOrders: async () => {}, fetchOrderStats: async () => {}, fetchTakeawayOrders: async () => {}, fetchDeliveryOrders: async () => {} });
 
   // Stable ref for handleInitiateSession — allows handleTableClick to call it
   // without adding a dependency that would cause realtime re-subscriptions.
@@ -197,12 +203,13 @@ export default function ManagementHubPage() {
   >(async () => {});
 
   const scheduleRefresh = useCallback(
-    (targets: { tables?: boolean; orders?: boolean; stats?: boolean; sections?: boolean; takeaway?: boolean }) => {
+    (targets: { tables?: boolean; orders?: boolean; stats?: boolean; sections?: boolean; takeaway?: boolean; delivery?: boolean }) => {
       if (targets.tables) pendingRefresh.current.tables = true;
       if (targets.orders) pendingRefresh.current.orders = true;
       if (targets.stats) pendingRefresh.current.stats = true;
       if (targets.sections) pendingRefresh.current.sections = true;
       if (targets.takeaway) pendingRefresh.current.takeaway = true;
+      if (targets.delivery) pendingRefresh.current.delivery = true;
 
       if (batchTimerRef.current) return; // already scheduled
       batchTimerRef.current = setTimeout(() => {
@@ -213,7 +220,8 @@ export default function ManagementHubPage() {
         if (p.orders) f.fetchOrders().catch(() => {});
         if (p.stats) f.fetchOrderStats().catch(() => {});
         if (p.takeaway) f.fetchTakeawayOrders().catch(() => {});
-        pendingRefresh.current = { tables: false, orders: false, stats: false, sections: false, takeaway: false };
+        if (p.delivery) f.fetchDeliveryOrders().catch(() => {});
+        pendingRefresh.current = { tables: false, orders: false, stats: false, sections: false, takeaway: false, delivery: false };
         batchTimerRef.current = null;
       }, 300);
     },
@@ -324,10 +332,27 @@ export default function ManagementHubPage() {
     }
   }, []);
 
+  // Data Fetching - Delivery Orders
+  const fetchDeliveryOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/pos/delivery', {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`Delivery fetch failed (${res.status})`);
+      const data = await res.json();
+      setDeliveryOrders(data.orders || []);
+    } catch (error: unknown) {
+      if ((error as Error).name === 'AbortError') return;
+      console.error('Failed to fetch delivery orders:', error);
+    } finally {
+      setIsDeliveryLoading(false);
+    }
+  }, []);
+
   // Keep batch-refresh refs in sync with latest fetch callbacks
   useEffect(() => {
-    fetchRef.current = { fetchTables, fetchSections, fetchOrders, fetchOrderStats, fetchTakeawayOrders };
-  }, [fetchTables, fetchSections, fetchOrders, fetchOrderStats, fetchTakeawayOrders]);
+    fetchRef.current = { fetchTables, fetchSections, fetchOrders, fetchOrderStats, fetchTakeawayOrders, fetchDeliveryOrders };
+  }, [fetchTables, fetchSections, fetchOrders, fetchOrderStats, fetchTakeawayOrders, fetchDeliveryOrders]);
 
   // Refresh All
 
@@ -336,7 +361,8 @@ export default function ManagementHubPage() {
     fetchOrders();
     fetchOrderStats();
     fetchTakeawayOrders();
-  }, [fetchTables, fetchOrders, fetchOrderStats, fetchTakeawayOrders]);
+    fetchDeliveryOrders();
+  }, [fetchTables, fetchOrders, fetchOrderStats, fetchTakeawayOrders, fetchDeliveryOrders]);
 
   // Initial load — runs once on mount (empty deps for fetchers that are stable)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -346,6 +372,7 @@ export default function ManagementHubPage() {
     fetchOrders();
     fetchOrderStats();
     fetchTakeawayOrders();
+    fetchDeliveryOrders();
 
     // Fetch restaurant settings into global store
     fetch('/api/settings')
@@ -476,13 +503,16 @@ export default function ManagementHubPage() {
           // per-table order total, the Revenue/Guests stat badges and any open
           // TableSessionPanel all read the order embedded in the table's
           // session, so a fire/pay from another terminal must re-embed it.
-          // Takeaway orders don't touch the floor, so refresh that list instead.
+          // Takeaway/delivery orders don't touch the floor, so refresh those
+          // lists instead. Both are cheap no-op fetches when their tab isn't
+          // mounted, so it's simpler to refresh both than to thread the
+          // order's mode through the (deliberately trimmed) event payload.
           const isDineIn = !!p?.tableId;
-          scheduleRefresh({ stats: true, tables: isDineIn, takeaway: !isDineIn });
+          scheduleRefresh({ stats: true, tables: isDineIn, takeaway: !isDineIn, delivery: !isDineIn });
         } else {
           // Trimmed or payload missing key fields — fall back to a full fetch
           // of everything, tables included, so nothing is left stale.
-          scheduleRefresh({ orders: true, stats: true, tables: true, takeaway: true });
+          scheduleRefresh({ orders: true, stats: true, tables: true, takeaway: true, delivery: true });
         }
 
         // If this order is currently focused in the editor, refresh it live
@@ -1269,6 +1299,62 @@ export default function ManagementHubPage() {
     // Stay on takeaway tab — customer panel will show search
   }, [clearFocusedContext]);
 
+  // ── Delivery Handlers ────────────────────────────────────────────────────
+  // Mirrors the takeaway handlers above — same creation/switch/new-order flow,
+  // just against /api/pos/delivery and the delivery-specific order list.
+
+  /** Initiate a new delivery order for a given customer */
+  const handleDeliveryInitiate = useCallback(
+    async (customerId: string) => {
+      try {
+        const res = await fetch('/api/pos/delivery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId }),
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || 'Failed to create delivery order');
+        }
+        const data = await res.json();
+        const order = data.order;
+
+        flushOrderEditorCache();
+        switchOrderContext({
+          orderId: order._id,
+          order,
+        });
+        // Add to local delivery orders list
+        setDeliveryOrders((prev) => [order, ...prev]);
+        scheduleRefresh({ stats: true });
+      } catch (error) {
+        console.error('Failed to initiate delivery order:', error);
+        pushError(`Failed to create delivery order: ${(error as Error).message}`, 'delivery-initiate');
+      }
+    },
+    [switchOrderContext, scheduleRefresh, pushError],
+  );
+
+  /** Switch to a different active delivery order */
+  const handleDeliverySwitch = useCallback(
+    (order: Order) => {
+      flushOrderEditorCache();
+      switchOrderContext({
+        orderId: order._id,
+        order,
+      });
+    },
+    [switchOrderContext],
+  );
+
+  /** Start a fresh new delivery order (clear context, customer panel shows search) */
+  const handleDeliveryNew = useCallback(() => {
+    flushOrderEditorCache();
+    clearFocusedContext();
+    // Stay on delivery tab — customer panel will show search
+  }, [clearFocusedContext]);
+
   const renderFloorPlanSlot = () => (
     <ContextBarSlot>
       <StatBadge
@@ -1344,6 +1430,8 @@ export default function ManagementHubPage() {
 
   const renderTakeawaySlot = () => null;
 
+  const renderDeliverySlot = () => null;
+
   const renderOrderListSlot = () => (
     <ContextBarSlot>
       {orderStats && (
@@ -1379,6 +1467,7 @@ export default function ManagementHubPage() {
         orderEditorSlot={renderOrderEditorSlot()}
         orderListSlot={renderOrderListSlot()}
         takeawaySlot={renderTakeawaySlot()}
+        deliverySlot={renderDeliverySlot()}
         hiddenTabs={hiddenTabs}
         onNewOrder={handleNewOrder}
         onRefresh={refreshAll}
@@ -1498,6 +1587,34 @@ export default function ManagementHubPage() {
                     prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
                   );
                   setTakeawayOrders((prev) =>
+                    prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
+                  );
+                  scheduleRefresh({ stats: true });
+                }}
+              />
+            )}
+
+            {/* Delivery Tab */}
+            {activeTab === 'delivery' && (
+              <OrderEditor
+                ref={orderEditorRef}
+                order={focusedContext.order}
+                mode="delivery"
+                takeawayOrders={deliveryOrders}
+                isTakeawayLoading={isDeliveryLoading}
+                onTakeawaySwitch={handleDeliverySwitch}
+                onTakeawayNew={handleDeliveryNew}
+                onTakeawayInitiate={handleDeliveryInitiate}
+                onOrderFired={() => {
+                  scheduleRefresh({ stats: true, delivery: true });
+                }}
+                onOrderUpdated={(updatedOrder: Order) => {
+                  setFocusedContext({ order: updatedOrder });
+                  // Patch both the generic orders list and delivery-specific list
+                  setOrders((prev) =>
+                    prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
+                  );
+                  setDeliveryOrders((prev) =>
                     prev.map((o) => (o._id === updatedOrder._id ? updatedOrder : o))
                   );
                   scheduleRefresh({ stats: true });

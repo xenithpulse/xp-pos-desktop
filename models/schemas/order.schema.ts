@@ -269,6 +269,7 @@ export interface IOrder extends Document {
   da: number;                    // discountAmount
   sc?: number;                   // serviceCharge
   df?: number;                   // deliveryFee
+  rn?: string;                   // riderName (delivery only — optional "assigned to" free text, no dispatch system)
   tp?: number;                   // tipAmount
   gt: number;                    // grandTotal
 
@@ -343,6 +344,7 @@ export const OrderSchema: Schema = new Schema<IOrder>(
     da: { type: Number, default: 0, min: 0 },
     sc: { type: Number, min: 0 },
     df: { type: Number, min: 0 },
+    rn: { type: String },
     tp: { type: Number, min: 0 },
     // Clamping setter: a discount/adjustment can exceed the base and briefly
     // drive the raw total negative — a bill can't be negative, and this guards

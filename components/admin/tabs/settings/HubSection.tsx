@@ -3,7 +3,7 @@
 
 'use client';
 
-import { Users, LayoutGrid, ClipboardList, ShoppingBag, History, Printer, CalendarClock } from 'lucide-react';
+import { Users, LayoutGrid, ClipboardList, ShoppingBag, History, Printer, CalendarClock, Truck } from 'lucide-react';
 import { Field, inputCls, selectCls, checkboxCls, SectionHeading, type SectionProps } from './shared';
 
 export default function HubSection({ settings, update }: SectionProps) {
@@ -109,6 +109,10 @@ export default function HubSection({ settings, update }: SectionProps) {
             <ShoppingBag size={14} className="text-[#555]" /> Takeaway
           </label>
           <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
+            <input type="checkbox" className={checkboxCls} checked={settings.hub.showDelivery} onChange={(e) => update('hub.showDelivery', e.target.checked)} />
+            <Truck size={14} className="text-[#555]" /> Delivery
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
             <input type="checkbox" className={checkboxCls} checked={settings.hub.showOrderList} onChange={(e) => update('hub.showOrderList', e.target.checked)} />
             <History size={14} className="text-[#555]" /> Order History
           </label>
@@ -122,6 +126,7 @@ export default function HubSection({ settings, update }: SectionProps) {
           <option value="orders">Orders</option>
           <option value="order-editor">Order Editor</option>
           <option value="takeaway">Takeaway</option>
+          <option value="delivery">Delivery</option>
           <option value="order-list">Order History</option>
         </select>
       </Field>

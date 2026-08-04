@@ -238,7 +238,7 @@ export interface IHubConfig {
   allowWalkInDuringHold: boolean;
 
   /** Which tab to open by default when the hub loads. */
-  defaultTab: 'floor-plan' | 'orders' | 'order-editor' | 'order-list' | 'takeaway';
+  defaultTab: 'floor-plan' | 'orders' | 'order-editor' | 'order-list' | 'takeaway' | 'delivery';
 
   /** Show the Floor Plan tab in the hub. */
   showFloorPlan: boolean;
@@ -248,6 +248,9 @@ export interface IHubConfig {
 
   /** Show the Takeaway tab in the hub. */
   showTakeaway: boolean;
+
+  /** Show the Delivery tab in the hub. */
+  showDelivery: boolean;
 
   /** Show the Order List (history) tab in the hub. */
   showOrderList: boolean;
@@ -476,6 +479,7 @@ export const DEFAULT_SETTINGS: Omit<ISettings, '_id' | 'createdAt' | 'updatedAt'
     showFloorPlan: true,
     showOrders: true,
     showTakeaway: true,
+    showDelivery: true,
     showOrderList: true,
     autoCloseOnPayment: false,
     autoPrintKOT: false,

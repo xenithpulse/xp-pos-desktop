@@ -22,6 +22,7 @@ export interface GlobalContextBarProps {
   orderEditorSlot?: ReactNode;
   orderListSlot?: ReactNode;
   takeawaySlot?: ReactNode;
+  deliverySlot?: ReactNode;
 
   /** Tab IDs to hide from the navigation (driven by hub settings). */
   hiddenTabs?: ActiveTab[];

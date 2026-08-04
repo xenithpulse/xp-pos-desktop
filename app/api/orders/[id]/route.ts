@@ -84,6 +84,7 @@ interface OrderUpdatePayload {
   discountValue?: number;
   serviceCharge?: number;
   deliveryFee?: number;
+  riderName?: string;
   tipAmount?: number;
   kitchenNotes?: string;
   internalNotes?: string;
@@ -153,6 +154,7 @@ export async function PUT(request: NextRequest) {
       if (data.discountValue !== undefined) o.dv = data.discountValue;
       if (data.serviceCharge !== undefined) o.sc = data.serviceCharge;
       if (data.deliveryFee !== undefined) o.df = data.deliveryFee;
+      if (data.riderName !== undefined) o.rn = data.riderName;
       if (data.tipAmount !== undefined) o.tp = data.tipAmount;
       if (data.kitchenNotes !== undefined) o.kn = data.kitchenNotes;
       if (data.internalNotes !== undefined) o.in = data.internalNotes;

@@ -42,7 +42,8 @@ import {
   SignalZero,
   Maximize,
   Minimize,
-  Settings, 
+  Settings,
+  Truck,
 } from 'lucide-react';
 import { usePOSStore, type NetworkQuality } from '@/stores/posStore';
 import { formatPrice } from '@/types/menu.types';
@@ -79,6 +80,11 @@ const TABS: TabConfig[] = [
     id: 'takeaway',
     label: 'Takeaway',
     icon: <ShoppingBag size={18} />,
+  },
+  {
+    id: 'delivery',
+    label: 'Delivery',
+    icon: <Truck size={18} />,
   },
   {
     id: 'order-list',
@@ -174,6 +180,7 @@ export default function GlobalContextBar({
   orderEditorSlot,
   orderListSlot,
   takeawaySlot,
+  deliverySlot,
   hiddenTabs = [],
   onNewOrder,
   onRefresh,
@@ -274,6 +281,8 @@ export default function GlobalContextBar({
         return orderListSlot;
       case 'takeaway':
         return takeawaySlot;
+      case 'delivery':
+        return deliverySlot;
       default:
         return null;
     }
@@ -286,7 +295,7 @@ export default function GlobalContextBar({
   };
 
   // Is this an order-editing context?
-  const isEditorContext = activeTab === 'order-editor' || activeTab === 'takeaway';
+  const isEditorContext = activeTab === 'order-editor' || activeTab === 'takeaway' || activeTab === 'delivery';
   const order = focusedContext.order;
 
   // Smart order status info for context bar
@@ -356,6 +365,11 @@ export default function GlobalContextBar({
                   <div className="flex items-center gap-1.5 px-2 py-1 bg-orange-500/15 border border-orange-500/25 rounded-lg" title="Takeaway">
                     <ShoppingBag size={13} className="text-orange-400" />
                     <span className="text-xs font-semibold text-orange-300 hidden md:inline">Takeaway</span>
+                  </div>
+                ) : activeTab === 'delivery' ? (
+                  <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-500/15 border border-purple-500/25 rounded-lg" title="Delivery">
+                    <Truck size={13} className="text-purple-400" />
+                    <span className="text-xs font-semibold text-purple-300 hidden md:inline">Delivery</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-500/15 border border-gray-500/25 rounded-lg" title="Quick Order">

@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import { getLicenseStatus } from "@/lib/licensing/status";
+import { getSiteIdentity } from "@/lib/updates/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -21,5 +22,13 @@ export async function GET() {
   // getLicenseStatus never throws - it fails open with a logged error - so the
   // only 500 reachable from here would be a genuine bug in serialisation.
   const status = await getLicenseStatus();
-  return NextResponse.json(status);
+
+  // siteId rides along on the same public response as the machine code: it's
+  // the identifier an operator pastes into xenithpulse.com to link this box
+  // to a Stripe subscription (e.g. WhatsApp confirmations). Same non-secret
+  // justification as the machine code — useless without XenithPulse's own
+  // records.
+  const { siteId } = await getSiteIdentity();
+
+  return NextResponse.json({ ...status, siteId });
 }

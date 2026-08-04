@@ -53,6 +53,7 @@ interface LicenseStatus {
   detail: string;
   rejection: string | null;
   checkedAt: string;
+  siteId: string;
 }
 
 export default function LicenseManager() {
@@ -63,6 +64,7 @@ export default function LicenseManager() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [siteIdCopied, setSiteIdCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +91,17 @@ export default function LicenseManager() {
     } catch {
       // No clipboard permission (or plain HTTP on some browsers). The code is
       // on screen in a selectable font; that is the fallback and it is fine.
+    }
+  };
+
+  const copySiteId = async () => {
+    if (!status) return;
+    try {
+      await navigator.clipboard.writeText(status.siteId);
+      setSiteIdCopied(true);
+      setTimeout(() => setSiteIdCopied(false), 2500);
+    } catch {
+      // No clipboard permission. The id is on screen in a selectable font.
     }
   };
 
@@ -229,6 +242,33 @@ export default function LicenseManager() {
             {message.text}
           </div>
         )}
+      </div>
+
+      {/* Site ID — the identifier XenithPulse subscriptions (e.g. WhatsApp
+          confirmations, billed on xenithpulse.com) key off, so a Stripe
+          subscription can find this specific box. Not a secret on its own,
+          same reasoning as the machine code above. */}
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">
+        <h3 className="mb-1 text-lg font-bold">Site ID</h3>
+        <p className="mb-4 text-sm text-neutral-400">
+          Give this to XenithPulse when you subscribe to an add-on (like
+          WhatsApp order confirmations) on xenithpulse.com, so your
+          subscription can find this box.
+        </p>
+        <div className="rounded-lg border border-neutral-700 bg-neutral-800/60 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-mono text-lg leading-relaxed break-all text-white select-all">
+              {status.siteId}
+            </p>
+            <button
+              onClick={copySiteId}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-neutral-700 px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-600"
+            >
+              <ClipboardCopy size={15} />
+              {siteIdCopied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6">

@@ -196,8 +196,11 @@ function SidebarWithToggle() {
   const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
   const pathname = usePathname();
   const isHubPage = pathname === "/hub";
+  // Kitchen display: full-screen ticket board, never needs the admin nav.
+  const isKitchenPage = pathname === "/kitchen";
 
   // On the hub page, respect the toggle. On other pages always show.
+  if (isKitchenPage) return null;
   if (isHubPage && !sidebarVisible) return null;
   return <Sidebar />;
 }
@@ -212,7 +215,8 @@ function MainContentWithToggle({
   const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
   const pathname = usePathname();
   const isHubPage = pathname === "/hub";
-  const hideSidebar = isHubPage && !sidebarVisible;
+  const isKitchenPage = pathname === "/kitchen";
+  const hideSidebar = isKitchenPage || (isHubPage && !sidebarVisible);
 
   // Shift the content in lockstep with the sidebar's collapsed/expanded width.
   // Only applies on desktop (≥lg) — on mobile the sidebar is an overlay drawer.

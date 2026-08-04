@@ -10,6 +10,8 @@ import { TableSessionModel } from '@/models/factories/TableSession';
 import { Types } from 'mongoose';
 import { isVersionConflict, versionConflictBody } from '@/lib/concurrency';
 import { broadcastEvent } from '@/lib/realtime/eventBus';
+import { isWhatsAppConfigured, sendWhatsAppMessage } from '@/lib/whatsapp';
+import { isWhatsAppEntitled } from '@/lib/entitlements/status';
 
 const log = console.log;
 
@@ -122,7 +124,8 @@ export async function POST(request: NextRequest) {
 
     // 4. Update order status if it's a draft → confirmed
     // s=status, 0=draft, 1=confirmed
-    if (order.s === 0) {
+    const justConfirmed = order.s === 0;
+    if (justConfirmed) {
       order.s = 1;  // confirmed
     }
 
@@ -146,6 +149,26 @@ export async function POST(request: NextRequest) {
 
     // 7. Commit transaction
     await mongoSession.commitTransaction();
+
+    // Order-confirmation WhatsApp message. This is the real "order confirmed"
+    // moment — draft orders have no manual confirm button anywhere in the UI,
+    // this is where a draft actually becomes confirmed. Only fires when a
+    // phone number is on file (dine-in orders normally don't have one, so
+    // this naturally only reaches takeaway/delivery customers), the
+    // WHATSAPP_* env vars are configured, AND the site's WhatsApp add-on
+    // subscription is currently entitled (lib/entitlements — no-op true when
+    // POS_ENTITLEMENTS_URL isn't set, i.e. every site not on that billing
+    // scheme). Free-text only: valid inside Meta's 24h customer-initiated
+    // window. A business-initiated confirmation sent outside that window
+    // needs an approved message template — no templates are approved yet, so
+    // that case is a known gap, not a silent failure.
+    if (justConfirmed && order.cu?.p && isWhatsAppConfigured() && (await isWhatsAppEntitled())) {
+      const itemCount = order.i.reduce((sum: number, item: any) => sum + item.q, 0);
+      const message = `Hi${order.cu?.n ? ' ' + order.cu.n : ''}, your order ${order.on} (${itemCount} item${itemCount === 1 ? '' : 's'}) has been confirmed and is being prepared. Total: ${order.gt}.`;
+      sendWhatsAppMessage(order.cu.p, message).catch((err) => {
+        console.error('[Fire Order API] WhatsApp confirmation failed to send:', err);
+      });
+    }
 
     // Broadcast item-fired event for real-time listeners
     // Using compressed field names: on=orderNumber, i=items, s=status, gt=grandTotal, st=subtotal

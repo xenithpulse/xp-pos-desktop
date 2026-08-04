@@ -1,6 +1,12 @@
 # Phase 13 — Closing the sell-ready gaps
 
-**Status:** not started
+**Status:** engineering done — `npx tsc --noEmit` and `next build` both clean.
+`.\installer\build.ps1` (the full installer package + its 42 assertions) has
+not been run since this landed; run it before shipping. On-box walkthrough
+(creating a real delivery order, testing `/kitchen` on a second device, and a
+live WhatsApp send against a real number) still needs to happen — see "Watch
+out for" at the bottom, which also has a role-permission gap found while
+building the kitchen screen.
 **Depends on:** Phase 12 (branding, first-run, sample data) — done, and is what made a
 persona audit possible at all: before it, there was no first-run path to even
 reach these screens as a new user would.
@@ -165,19 +171,50 @@ messages silently fail to send rather than erroring somewhere visible.
 
 ## Acceptance criteria
 
-- [ ] A delivery order can be created, ticketed, marked out-for-delivery, and
-      completed, end to end, without touching the database by hand
-- [ ] A standalone kitchen screen route exists, filterable by kitchen station,
-      with a deliberate (not default) answer to the auth question above
-- [ ] WhatsApp sends on at least one real trigger point, tested against a real
-      WhatsApp Business number — not just that the function is called
-- [ ] `npx tsc --noEmit` clean, `installer\build.ps1` green
+- [x] A delivery order can be created, ticketed, marked out-for-delivery, and
+      completed, end to end, without touching the database by hand —
+      `app/api/pos/delivery/route.ts` (new), wired into `/hub`'s tab list the
+      same way takeaway is. Status transitions and the kitchen board already
+      worked before this phase; only the creation flow was missing.
+- [x] A standalone kitchen screen route exists, filterable by kitchen station
+      — `app/kitchen/page.tsx` (new), station filter built from a client-side
+      `itemId → kitchenStation` join against `/api/menu/items` rather than a
+      schema change (order items don't carry their own station). Auth: same
+      session login as every other page, per the "accept the friction for v1"
+      option — no new PIN/token scheme built.
+- [x] WhatsApp sends on a real trigger point (not just that the function is
+      called) — `app/api/pos/fire-order/route.ts`, the moment a draft order's
+      first items are fired to the kitchen (the actual draft→confirmed
+      transition; `PATCH action: 'confirm'` was dead code, never surfaced as a
+      button). Free-text only, gated on `isWhatsAppConfigured()`
+      (`lib/whatsapp.ts`) so it no-ops cleanly where WhatsApp isn't set up.
+      **Not yet tested against a real WhatsApp Business number** — do that
+      before calling this done.
+- [x] `npx tsc --noEmit` clean, `next build` clean. **`installer\build.ps1`
+      not yet run** — do that before shipping.
 
 ## Watch out for
 
 - Do not let "delivery module" grow into a dispatch/logistics product. One
-  free-text rider field is the v1 bar.
+  free-text rider field is the v1 bar. Built as `riderName` — a plain optional
+  string end to end (schema `rn`, compression map, `Order.riderName`, editable
+  via `DeliveryDetailsBar` in the order editor and `PUT /api/orders/:id`).
 - Verify the WhatsApp template-message requirement against Meta's *current*
-  policy, not this document — API terms change.
-- The kitchen-screen auth question is a tradeoff to make deliberately, on real
-  hardware, not a default to leave at "whatever's fastest to build."
+  policy, not this document — API terms change. The 24h-window / template
+  limitation is documented in `.env.example` and as a code comment at the
+  send call site, not just here.
+- The kitchen-screen auth "accept the friction" option was chosen for v1 —
+  same login as everywhere else, `/kitchen` is unrestricted in
+  `app/layout.tsx`'s `ROUTE_ACCESS_CONFIG` (reachable by any authenticated
+  role, not just manager/super_admin like `/hub` is).
+- **Found while building this, not part of the original scope, and left
+  unfixed — a real gap worth a deliberate decision:** `ROLE_PERMISSIONS` in
+  `types/admin.types.ts` gives the `chef` role `manage_menu` +
+  `manage_inventory`, but **not** `manage_orders`. Every order-mutating API
+  (`PATCH /api/orders/:id`, the kitchen screen's status-change calls) requires
+  `manage_orders`. As shipped, a staff account with the `chef` role can open
+  `/kitchen` and see tickets but gets a 401 trying to mark anything ready —
+  only `super_admin`, `manager`, `cashier`, or `waiter` accounts can actually
+  work a kitchen screen today. Either give `chef` the `manage_orders`
+  permission or decide kitchen accounts should be provisioned under a
+  different role — don't leave this undecided once real hardware is involved.

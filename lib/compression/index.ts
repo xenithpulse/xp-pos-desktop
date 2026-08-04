@@ -145,6 +145,7 @@ export const ORDER_FIELD_MAP = {
   discountAmount: 'da',
   serviceCharge: 'sc',
   deliveryFee: 'df',
+  riderName: 'rn',
   tipAmount: 'tp',
   grandTotal: 'gt',
   

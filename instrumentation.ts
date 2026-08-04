@@ -63,6 +63,18 @@ export async function register() {
     console.error('[updates] agent failed to start; the POS continues without it:', err);
   }
 
+  // Entitlements: whether this site's XenithPulse subscription (WhatsApp
+  // confirmations, billed via Stripe on xenithpulse.com) is currently active.
+  // Same posture as the update agent: a no-op when POS_ENTITLEMENTS_URL is
+  // blank (every site until it opts into this billing scheme), and wrapped so
+  // a failure here can never take the POS down.
+  try {
+    const { startEntitlementAgent } = await import('./lib/entitlements/agent');
+    startEntitlementAgent();
+  } catch (err) {
+    console.error('[entitlements] agent failed to start; the POS continues without it:', err);
+  }
+
   // Licensing, warmed up here rather than on the first request.
   //
   // Resolving status reads the registry and asks Windows for four hardware

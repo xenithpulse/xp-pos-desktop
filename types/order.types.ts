@@ -242,6 +242,8 @@ export interface Order {
   discountAmount: number;
   serviceCharge?: number;
   deliveryFee?: number;
+  /** Delivery only — optional "assigned to" free text. No dispatch/GPS system. */
+  riderName?: string;
   tipAmount?: number;
   grandTotal: number;
   

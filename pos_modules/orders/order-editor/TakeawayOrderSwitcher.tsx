@@ -28,6 +28,8 @@ interface TakeawayOrderSwitcherProps {
   onNewOrder: () => void;
   /** Whether data is still loading */
   isLoading?: boolean;
+  /** Header label + empty-state copy — defaults to "Takeaway Orders" */
+  label?: string;
 }
 
 const CHIPS_PER_PAGE = 12;
@@ -38,6 +40,7 @@ export default function TakeawayOrderSwitcher({
   onSwitchOrder,
   onNewOrder,
   isLoading,
+  label = 'Takeaway Orders',
 }: TakeawayOrderSwitcherProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [chipPage, setChipPage] = useState(0);
@@ -93,7 +96,7 @@ export default function TakeawayOrderSwitcher({
           className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-white transition-colors"
         >
           <ArrowRightLeft size={14} className="text-orange-400" />
-          <span>Takeaway Orders</span>
+          <span>{label}</span>
           <span className="text-xs text-gray-500 font-normal">
             {orders.length} active
           </span>
@@ -148,7 +151,7 @@ export default function TakeawayOrderSwitcher({
             <div className="text-center py-3">
               <Package size={16} className="mx-auto mb-1 text-gray-600" />
               <p className="text-xs text-gray-500">
-                {filterQuery ? 'No matching orders' : 'No active takeaway orders'}
+                {filterQuery ? 'No matching orders' : `No active ${label.toLowerCase()}`}
               </p>
               <button
                 onClick={onNewOrder}

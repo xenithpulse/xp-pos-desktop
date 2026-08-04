@@ -19,7 +19,7 @@ import type { SupportedCurrency, CurrencySymbolPosition, IHubConfig, IReceiptCon
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ActiveTab = 'floor-plan' | 'orders' | 'order-editor' | 'order-list' | 'takeaway';
+export type ActiveTab = 'floor-plan' | 'orders' | 'order-editor' | 'order-list' | 'takeaway' | 'delivery';
 
 export type NetworkQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'offline';
 
