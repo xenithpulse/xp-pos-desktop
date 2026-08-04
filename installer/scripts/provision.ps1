@@ -29,6 +29,15 @@
 .PARAMETER Port
     Override the host port (default: POS_HTTP_PORT from .env, else 8080).
 
+.PARAMETER StartMenuDir
+    Start menu program group to put the "XP POS" shortcut in. Passed by
+    setup.iss as {group} so the installer and this script cannot disagree about
+    where it went. Empty means "do not create one".
+
+.PARAMETER DesktopShortcut
+    Also put the shortcut on the all-users desktop. Set by setup.iss when the
+    operator ticked the desktop task.
+
 .EXAMPLE
     .\provision.ps1
     .\provision.ps1 -Port 9090
@@ -42,7 +51,9 @@
 [CmdletBinding()]
 param(
     [string]$InstallDir = "$env:ProgramFiles\XP POS",
-    [int]$Port
+    [int]$Port,
+    [string]$StartMenuDir,
+    [switch]$DesktopShortcut
 )
 
 $ErrorActionPreference = 'Stop'
@@ -340,6 +351,37 @@ if (Test-Path $EnvPath) {
     Write-Ok "Created .env ($generated secrets generated)"
     Write-Warn "This box now has unique credentials. Back up .env - losing it"
     Write-Host "         invalidates every existing login session." -ForegroundColor DarkGray
+}
+
+<#
+    Force ENABLE_SETUP_ENDPOINTS off. The ONE exception to "never touch an
+    existing value", and it is deliberate.
+
+    /api/injections/* resets order status, wipes and re-seeds menu data, and
+    creates admin accounts. Those endpoints have no authentication of their own
+    - this flag is the authentication - and they sit on a box every phone and
+    tablet in the restaurant can reach.
+
+    The template used to ship this as TRUE, because seeding the first admin
+    through it was the only way to get an account onto a fresh install. Every
+    site provisioned under that template therefore has it on, permanently, since
+    the merge above only ADDS absent keys and would never correct it.
+
+    It is no longer needed for anything a customer does: the first person to
+    open the POS creates the owner account at /setup. So this closes it on every
+    box that runs an upgrade, and says so rather than doing it quietly.
+#>
+if (Test-Path $EnvPath) {
+    $envText = Read-TextUtf8 $EnvPath
+    if ($envText -match '(?m)^\s*ENABLE_SETUP_ENDPOINTS\s*=\s*true\s*$') {
+        $envText = [regex]::Replace($envText,
+            '(?m)^\s*ENABLE_SETUP_ENDPOINTS\s*=\s*true\s*$', 'ENABLE_SETUP_ENDPOINTS=false')
+        Write-TextNoBom -Path $EnvPath -Text $envText
+        Write-Warn "ENABLE_SETUP_ENDPOINTS was ON - turned OFF."
+        Write-Host "         Those endpoints can wipe menu data and create admin accounts," -ForegroundColor DarkGray
+        Write-Host "         and anything on the LAN could reach them. Owner accounts are" -ForegroundColor DarkGray
+        Write-Host "         now created at /setup instead, so nothing needs this on." -ForegroundColor DarkGray
+    }
 }
 
 $EnvVars = ConvertFrom-EnvFile $EnvPath
@@ -664,6 +706,129 @@ foreach ($c in $ranked) {
     }
 }
 
+# ── 11. The way in: shortcut and connection card ─────────────────────────────
+#
+# Until this existed, the address a customer needs was printed only to this
+# script's console - which setup.iss launches with SW_HIDE. The single piece of
+# information required to use the product was therefore invisible, and the only
+# Start menu entries were a service-status window and a log folder.
+#
+# Both artefacts are written HERE rather than by the installer because the port
+# is not known until this script has picked one, and it can move between runs
+# when something else takes 8080. Re-running provisioning refreshes them, which
+# is what makes a port change self-healing rather than a support call.
+#
+# Nothing in this section is allowed to fail the install: a missing shortcut is
+# a nuisance, whereas aborting here would discard a POS that is already running.
+Write-Step "Writing the connection card and shortcuts"
+
+# TODO(XenithPulse): keep in step with setup.iss and config/brand.ts.
+$SupportEmail = 'support@xenithpulse.com'
+
+$localUrl = "http://127.0.0.1:$Port"
+$staffUrl = if ($lanIps.Count -gt 0) { "http://$($lanIps[0]):$Port" } else { '' }
+
+try {
+    # The .url points at 127.0.0.1 deliberately: this shortcut lives on the
+    # server box, and the loopback address keeps working when the machine's LAN
+    # address changes or the network is down. Staff devices get the LAN address
+    # from the card instead.
+    $urlFile = @(
+        '[InternetShortcut]',
+        "URL=$localUrl",
+        "IconFile=$InstallDir\branding\XP-POS.ico",
+        'IconIndex=0'
+    ) -join "`r`n"
+
+    $urlPath = Join-Path $DataRoot 'XP POS.url'
+    Set-Content -Path $urlPath -Value $urlFile -Encoding ASCII -Force
+
+    # Copies, not links: each location has to survive the others being deleted,
+    # and a 150-byte file is not worth being clever about.
+    $targets = @()
+    if ($StartMenuDir) { $targets += (Join-Path $StartMenuDir 'XP POS.url') }
+    if ($DesktopShortcut) {
+        $publicDesktop = Join-Path $env:PUBLIC 'Desktop'
+        if (Test-Path $publicDesktop) { $targets += (Join-Path $publicDesktop 'XP POS.url') }
+    }
+    foreach ($t in $targets) {
+        $dir = Split-Path -Parent $t
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        Copy-Item $urlPath $t -Force
+    }
+    Write-Ok "Shortcut created ($($targets.Count + 1) locations)"
+} catch {
+    Write-Warn "Could not create the POS shortcut: $($_.Exception.Message)"
+}
+
+try {
+    # LINE 1 IS LOAD-BEARING: setup.iss reads it to put the address on the
+    # finish page, and only accepts it if it starts with "http". When there is
+    # no LAN address the marker below deliberately fails that test, so the
+    # wizard shows its "not on the network yet" wording instead of advertising
+    # a loopback address to staff devices that cannot reach it.
+    $firstLine = if ($staffUrl) { $staffUrl } else { '(no network address found yet)' }
+    $staffBlock = if ($staffUrl) { $staffUrl } else { 'not available - this computer is not on a network yet' }
+
+    $card = @"
+$firstLine
+
+XP POS - HOW TO GET STARTED
+===========================
+
+1. OPEN THE POS
+   On any phone, tablet or computer on the same network as this one, open
+   a web browser and go to:
+
+       $staffBlock
+
+   On this computer you can also use:
+
+       $localUrl
+
+2. CREATE THE OWNER ACCOUNT
+   The first person to open the POS is asked to choose a username and a
+   password. That account is the owner and can do everything, including
+   creating accounts for staff.
+
+   There is no default password. If someone else reaches the POS before
+   you do, they get asked to create it instead - so do this first.
+
+3. ADD YOUR STAFF
+   Sign in as the owner, then go to Admin -> Users.
+
+KEEPING IT RUNNING
+------------------
+The POS runs as three Windows services. It starts by itself when this
+computer is switched on, with nobody logged in, and restarts by itself
+after a power cut. Leave this computer on and connected to the network.
+
+If staff devices cannot reach the POS:
+  - check this computer is switched on and on the same network
+  - check the address above is still correct. It can change if the router
+    hands out addresses automatically; ask whoever set up your network to
+    give this computer a fixed address.
+
+WHERE THINGS ARE
+----------------
+Your business data:  $DataRoot
+Logs:                $DataRoot\logs
+Service status:      Start menu -> XP POS -> Service Status
+
+SUPPORT
+-------
+$SupportEmail
+
+Written by provisioning on $(Get-Date -Format 'yyyy-MM-dd HH:mm'). Re-running
+the installer or provisioning refreshes this file.
+"@
+
+    Set-Content -Path (Join-Path $DataRoot 'connect-info.txt') -Value $card -Encoding ASCII -Force
+    Write-Ok "Connection card written to $DataRoot\connect-info.txt"
+} catch {
+    Write-Warn "Could not write the connection card: $($_.Exception.Message)"
+}
+
 & $Services -Action Status -InstallDir $InstallDir
 
 Write-Host ""
@@ -681,12 +846,14 @@ Write-Host ""
 Write-Host "   On this box:  http://127.0.0.1:$Port" -ForegroundColor DarkGray
 Write-Host ""
 
-if ($EnvVars['ENABLE_SETUP_ENDPOINTS'] -eq 'true') {
-    Write-Warn "ENABLE_SETUP_ENDPOINTS=true - seeding endpoints are OPEN."
-    Write-Host "         After seeding the admin user, set it to false in" -ForegroundColor DarkGray
-    Write-Host "         $EnvPath and restart: `"$Services`" -Action Restart" -ForegroundColor DarkGray
-    Write-Host ""
-}
+# NOTE: the old "ENABLE_SETUP_ENDPOINTS is open" warning that used to sit here
+# is gone because it can no longer fire - step 2 turns the flag off before
+# $EnvVars is read.
+
+Write-Host "   Nobody has an account yet. The first person to open the address" -ForegroundColor White
+Write-Host "   above is asked to create the owner account - do this before" -ForegroundColor DarkGray
+Write-Host "   leaving, and before staff devices are handed out." -ForegroundColor DarkGray
+Write-Host ""
 
 Write-Host "   IMPORTANT - verify unattended start before leaving site:" -ForegroundColor Yellow
 Write-Host "     1. Reboot this box." -ForegroundColor DarkGray

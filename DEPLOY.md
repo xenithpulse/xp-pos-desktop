@@ -66,16 +66,34 @@ It must serve the login page. If it does not, run the status check below.
 
 ---
 
-## First run: seed the admin user
+## First run: the owner account
 
-The configuration ships with `ENABLE_SETUP_ENDPOINTS=true` so `/api/injections/*`
-is reachable to create the first admin. **Once seeded, close it:**
+Nothing to configure. Open the address the installer showed on its last page —
+it is also saved in `C:\ProgramData\XP POS\connect-info.txt` and on the Start
+menu under **XP POS → Getting Started**.
 
-1. Set `ENABLE_SETUP_ENDPOINTS=false` in `C:\ProgramData\XP POS\.env`
-2. Restart the app:
-   ```powershell
-   & "C:\Program Files\XP POS\scripts\services.ps1" -Action Restart -Service XPPOS-App
-   ```
+The first person to open the POS is sent to `/setup` and asked to choose a
+username and password. That account is the `super_admin` owner. Once it exists,
+`/setup` redirects to the login page and cannot be used again.
+
+**Do this before leaving the site, and before handing out staff devices.** There
+is no default password, and whoever reaches the POS first is the one who gets
+asked to create the owner.
+
+Staff accounts are then created in-app: sign in as the owner, then **Admin →
+Users**.
+
+### `/api/injections/*` is not part of this
+
+Those endpoints reset order status, wipe and re-seed menu data, and create admin
+accounts. They ship **off** (`ENABLE_SETUP_ENDPOINTS=false`) and provisioning
+turns them off on any older box that still has them on.
+
+They used to be required — `/api/injections/seed-admin` created a
+`reviewer` / `reviewer@123` super_admin, on an unauthenticated GET, and it did
+not check the flag at all. That is fixed: the route is now POST-only, actually
+guarded, and takes the password from the caller. Nothing a customer does needs
+these endpoints any more.
 
 ---
 

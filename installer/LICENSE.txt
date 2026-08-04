@@ -1,0 +1,162 @@
+XP POS - END USER LICENCE AGREEMENT
+
+XenithPulse ("we", "us")
+Last updated: 2026-08-04
+
+Please read this before installing. Installing or using XP POS means you accept
+this agreement. If you do not accept it, do not install the software.
+
+This agreement is written in plain English on purpose. It is meant to be read.
+
+
+1. WHAT YOU ARE GETTING
+
+XP POS is point-of-sale software you install on one computer at your business.
+That computer runs the database and serves the POS to the phones, tablets and
+terminals on your local network.
+
+We licence this software to you. We do not sell it to you. You may use it, but
+you do not own it.
+
+
+2. ONE LICENCE, ONE SITE
+
+A licence covers one site - one business location, one installation. Staff
+devices at that site can connect without limit; we do not charge per device or
+per user.
+
+If you run a second location, that needs a second licence.
+
+A licence is tied to the installation it is activated on. If you replace the
+computer, contact us and we will move the licence across at no charge.
+
+
+3. THE 30-DAY TRIAL
+
+XP POS runs in full for 30 days from installation. Nothing is disabled and
+nothing is watermarked during the trial. We want you to test it on real trade,
+not on a demo.
+
+When the trial ends the software becomes read-only until a licence is activated.
+You can still open it and read everything - past orders, your menu, your
+reports - but you cannot record new business.
+
+Nothing is deleted. Your data stays exactly where it is and becomes fully
+available again the moment you activate.
+
+
+4. WHAT YOU MAY NOT DO
+
+You may not:
+
+  - copy the software to another site or business, or sell, rent, sub-licence
+    or give it away
+  - work around, disable or tamper with licence checking or the trial period
+  - reverse-engineer, decompile or disassemble the software, except where the
+    law explicitly gives you that right despite this clause
+  - remove or alter our name, logos or notices
+
+
+5. YOUR DATA IS YOURS
+
+Every order, menu item, customer record, staff account and image you put into
+XP POS belongs to you. Not to us.
+
+It is stored on your computer, in your building, under
+C:\ProgramData\XP POS. We do not hold a copy and we cannot read it remotely.
+
+Because it is on your computer, backing it up is your responsibility. XP POS
+includes backup tools; using them is up to you. We cannot recover data from a
+machine that has failed and was never backed up.
+
+
+6. WHAT WE COLLECT
+
+When update checking is enabled, the software contacts us to ask whether a newer
+version exists. That request tells us the installation's anonymous site
+identifier, the version installed, and the Windows version. Nothing else. No
+sales figures, no menu, no customer information, no staff details.
+
+You can turn update checking off. It is off by default.
+
+
+7. UPDATES
+
+We may release updates that fix problems, improve the software, or adapt it to
+changes in Windows. Updates are covered by this same agreement.
+
+We are not obliged to keep releasing updates forever, and we may retire an old
+version if we can no longer support it safely.
+
+
+8. SUPPORT
+
+Support terms, response times and the channels you can reach us on are set out
+separately in the arrangement you have with us. Support is not covered by this
+agreement.
+
+
+9. NO WARRANTY
+
+We have tested this software and we run it in real restaurants. But we provide
+it "as is". We do not promise that it will be free of faults, that it will never
+be interrupted, or that it will suit a particular way of working.
+
+You are responsible for deciding whether XP POS is right for your business, and
+for keeping a way to take payment if any computer system fails.
+
+
+10. LIMITS ON WHAT WE OWE YOU
+
+To the extent the law allows, we are not liable for lost profit, lost sales,
+lost or corrupted data, business interruption, or any indirect or consequential
+loss.
+
+Where we are found liable despite the above, our total liability is limited to
+what you paid us for the licence in the twelve months before the claim.
+
+Nothing in this agreement limits liability for death or personal injury caused
+by negligence, for fraud, or for anything else the law does not permit us to
+limit.
+
+
+11. ENDING THIS AGREEMENT
+
+This agreement runs until it ends.
+
+You can end it at any time by uninstalling the software.
+
+We can end it if you seriously breach it - for example by copying the software
+to other sites or by defeating licence checking - and you do not put it right
+within 30 days of us telling you about it.
+
+When it ends you must stop using XP POS and uninstall it. You keep your data;
+uninstalling gives you the choice to keep it, and it defaults to keeping it.
+
+Sections 5, 9, 10 and 12 survive the end of this agreement.
+
+
+12. GOVERNING LAW
+
+[REVIEW BEFORE SHIPPING] This agreement is governed by the laws of
+<JURISDICTION>, and the courts of <JURISDICTION> have exclusive jurisdiction.
+
+
+13. THE WHOLE AGREEMENT
+
+This is the entire agreement between us about XP POS and it replaces anything
+said or written beforehand.
+
+If a court finds any part of it unenforceable, the rest still stands.
+
+
+14. CONTACTING US
+
+[REVIEW BEFORE SHIPPING]
+  <LEGAL ENTITY NAME>
+  <REGISTERED ADDRESS>
+  <SUPPORT EMAIL>
+  <WEBSITE>
+
+
+(c) 2026 XenithPulse. All rights reserved.

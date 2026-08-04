@@ -79,7 +79,19 @@
       "PowerShell(& \"E:\\\\XP-POS-DESK\\\\installer\\\\scripts\\\\qa-check.ps1\" -InstallDir \"C:\\\\Program Files\\\\XP POS\" 2>&1)",
       "PowerShell(& \"E:\\\\XP-POS-DESK\\\\installer\\\\scripts\\\\watchdog.ps1\" -InstallDir \"C:\\\\Program Files\\\\XP POS\" -WhatIf 2>&1 | Select-Object -First 20; Write-Host \"exit=$LASTEXITCODE\")",
       "PowerShell($pause = 'C:\\\\ProgramData\\\\XP POS\\\\watchdog-pause'; try { Set-Content -Path $pause -Value \\(\\(Get-Date\\).AddMinutes\\(-5\\).ToString\\('o'\\)\\) -Encoding UTF8 -ErrorAction Stop; Write-Host \"wrote an EXPIRED pause file\"; & \"E:\\\\XP-POS-DESK\\\\installer\\\\scripts\\\\watchdog.ps1\" -InstallDir \"C:\\\\Program Files\\\\XP POS\" -WhatIf; Write-Host \"exit=$LASTEXITCODE\"; Write-Host \"pause file still there: $\\(Test-Path $pause\\)\" } catch { \"cannot write to ProgramData without elevation: $\\($_.Exception.Message\\)\" })",
-      "Bash(LOG=\"C:/Users/DELL/AppData/Local/Temp/claude/e--XP-POS-DESK/66d7a33a-0a33-43c6-bab6-eeb61469078e/tasks/bbu0e4kly.output\"; until grep -qE \"INSTALLER READY|FAIL \" \"$LOG\" 2>/dev/null; do sleep 20; done; sed -n '/INSTALLER READY/,$p' \"$LOG\")"
+      "Bash(LOG=\"C:/Users/DELL/AppData/Local/Temp/claude/e--XP-POS-DESK/66d7a33a-0a33-43c6-bab6-eeb61469078e/tasks/bbu0e4kly.output\"; until grep -qE \"INSTALLER READY|FAIL \" \"$LOG\" 2>/dev/null; do sleep 20; done; sed -n '/INSTALLER READY/,$p' \"$LOG\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(Object.keys\\(p.dependencies\\).join\\(' '\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).version\\)\")",
+      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $b=New-Object System.Drawing.Bitmap 64,64; $g=[System.Drawing.Graphics]::FromImage\\($b\\); $g.SmoothingMode='\\\\''AntiAlias'\\\\''; $g.Clear\\([System.Drawing.Color]::Black\\); Write-Output \\('\\\\''System.Drawing OK '\\\\'' + $b.Width\\); $pfc=New-Object System.Drawing.Text.PrivateFontCollection; $pfc.AddFontFile\\('\\\\''E:\\\\XP-POS-DESK\\\\public\\\\fonts\\\\LunaObscura.ttf'\\\\''\\); Write-Output \\('\\\\''Font: '\\\\'' + $pfc.Families[0].Name\\)')",
+      "PowerShell(& \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\\\scratchpad\\\\candidates.ps1\")",
+      "PowerShell($sp='C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\\\scratchpad'; $dst='E:\\\\XP-POS-DESK\\\\installer\\\\branding'; New-Item -ItemType Directory -Force $dst | Out-Null; Copy-Item \"$sp\\\\candidates.png\" \"$dst\\\\_icon-candidates.png\" -Force; Get-ChildItem $dst | Select-Object Name,Length)",
+      "PowerShell(& 'E:\\\\XP-POS-DESK\\\\installer\\\\branding\\\\make-branding.ps1')",
+      "PowerShell($n='E:\\\\XP-POS-DESK\\\\installer\\\\branding\\\\make-branding.ps1'; $t=[System.IO.File]::ReadAllText\\($n\\); [System.IO.File]::WriteAllText\\($n,$t,\\(New-Object System.Text.UTF8Encoding\\($true\\)\\)\\); & $n)",
+      "Bash(grep -n \"Assert-Payload\\\\|Copy-Item.*payload\\\\|function Assert\\\\|Stage-\\\\|scripts\\\\\\\\\\\\\\\\\" installer/build.ps1)",
+      "PowerShell(Copy-Item 'E:\\\\XP-POS-DESK\\\\app\\\\\\(auth\\)\\\\login\\\\page.tsx' 'E:\\\\XP-POS-DESK\\\\app\\\\\\(auth\\)\\\\login\\\\LoginForm.tsx' -Force)",
+      "PowerShell(& \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\e--XP-POS-DESK\\\\473ff6e3-d27a-4ae0-95ea-1f1133100dab\\\\scratchpad\\\\guard.ps1\")"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",

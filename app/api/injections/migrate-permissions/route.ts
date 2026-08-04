@@ -2,12 +2,19 @@
 // One-time migration: recalculate all admin permissions from their role
 // using the updated ROLE_PERMISSIONS map.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { guardInjections } from '@/lib/injectionsGuard';
 import { mongooseConnect } from '@/lib/mongoose';
 import { AdminModel } from '@/models/factories/Admin';
 import { ROLE_PERMISSIONS } from '@/types/admin.types';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(req);
+  if (denied) return denied;
+
   try {
     const conn = await mongooseConnect();
     const Admin = AdminModel(conn);

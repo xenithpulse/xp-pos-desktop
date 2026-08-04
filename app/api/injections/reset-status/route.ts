@@ -9,7 +9,8 @@
  * GET /api/injections/reset-status - Reset all orders and tables
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { guardInjections } from '@/lib/injectionsGuard';
 import { mongooseConnect } from '@/lib/mongoose';
 import { OrderModel } from '@/models/factories/Order';
 import { TableModel } from '@/models/factories/Table';
@@ -38,7 +39,13 @@ interface ResetStats {
   errors: string[];
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(req);
+  if (denied) return denied;
+
   const startTime = Date.now();
 
   try {

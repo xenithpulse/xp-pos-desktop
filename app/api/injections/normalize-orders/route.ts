@@ -13,7 +13,8 @@
  * GET /api/injections/normalize-orders - Run the injection
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { guardInjections } from '@/lib/injectionsGuard';
 import { mongooseConnect } from '@/lib/mongoose';
 
 const BATCH_SIZE = 500;
@@ -43,7 +44,13 @@ function buildOrderNumber(seq: number): string {
   return `ORD-${datePart}-${String(seq).padStart(4, '0')}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(req);
+  if (denied) return denied;
+
   const startTime = Date.now();
 
   try {

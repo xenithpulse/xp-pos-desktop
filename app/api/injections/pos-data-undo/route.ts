@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { guardInjections } from "@/lib/injectionsGuard";
 import { mongooseConnect } from "@/lib/mongoose";
 import { CategoryModel, MenuItemModel } from "@/models/factories/Menu";
 import { IngredientModel } from "@/models/factories/Ingredients";
@@ -28,6 +29,12 @@ interface IngredientPayload {
 }
 
 export async function GET(request: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(request);
+  if (denied) return denied;
+
   const startTime = Date.now();
 
   try {

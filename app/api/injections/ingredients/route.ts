@@ -6,7 +6,8 @@
  * GET /api/injections/ingredients - Import all ingredients
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { guardInjections } from "@/lib/injectionsGuard";
 import { mongooseConnect } from "@/lib/mongoose";
 import { IngredientModel } from "@/models/factories/Ingredients";
 import ingredientsData from "@/public/ingredients.json";
@@ -17,7 +18,13 @@ interface IngredientPayload {
   unit: string;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(req);
+  if (denied) return denied;
+
   try {
     const conn = await mongooseConnect();
     const Ingredient = IngredientModel(conn);

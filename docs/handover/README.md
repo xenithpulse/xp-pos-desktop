@@ -48,7 +48,7 @@ Do them in numbered order. The numbering **is** the execution order.
 | [`PHASE-10-REMOTE-UPDATE.md`](PHASE-10-REMOTE-UPDATE.md) | Updating and supporting a running client box | large | **update delivery + diagnostics DONE — awaiting a published manifest; scopes B and D deliberately not built** |
 | [`PHASE-11-LICENSING.md`](PHASE-11-LICENSING.md) | 30-day trial, licence activation, enforcement | large | **engineering DONE — back up the signing key, then run the on-box checklist** |
 | [`RESILIENCE-AND-QA.md`](RESILIENCE-AND-QA.md) | Self-healing services, watchdog, and the per-device QA check | medium | **built — `-Destructive` and reboot tests still to run on a real box** |
-| [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, in-app naming | small | not started |
+| [`PHASE-12-BRANDING.md`](PHASE-12-BRANDING.md) | XenithPulse icons, wizard imagery, and the first-run path | medium | **built — needs the on-box wizard walkthrough; contact details and the EULA still placeholders** |
 
 **Why this order:**
 
@@ -74,7 +74,13 @@ Do them in numbered order. The numbering **is** the execution order.
   before proving it stays up. It is not numbered: it hardens 9-11 rather than
   adding a feature. `installer\scripts\qa-check.ps1` is now the thing to run on
   every box before it is left with a customer.
-- **12 last** because it is the only phase that changes nothing functional.
+- **12 last** because it was believed to be the only phase that changes nothing
+  functional. That turned out to be wrong. Auditing it found that a fresh box
+  had no way to create a first account except an unauthenticated endpoint that
+  seeded a known `reviewer` / `reviewer@123` super_admin, that nine of the
+  eleven `/api/injections/*` routes never called their own guard, and that the
+  address a customer needs was printed only into a hidden console. Phase 12 now
+  also covers the path from double-clicking the installer to taking an order.
 
 **One thing from Phase 11 is not a code task and has no deadline but the first
 sale:** the licence signing key exists only at

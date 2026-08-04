@@ -11,7 +11,8 @@
  * GET /api/injections/normalize-tables - Run the injection
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { guardInjections } from '@/lib/injectionsGuard';
 import { mongooseConnect } from '@/lib/mongoose';
 import { Types } from 'mongoose';
 
@@ -44,7 +45,13 @@ function needsNormalization(table: Record<string, unknown>): boolean {
   );
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Setup endpoints are destructive and unauthenticated by design, so they must
+  // be unreachable in normal operation. This guard was written for that and then
+  // not wired up here - see lib/injectionsGuard.ts.
+  const denied = guardInjections(req);
+  if (denied) return denied;
+
   const startTime = Date.now();
 
   try {
