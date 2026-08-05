@@ -130,10 +130,35 @@ export interface POSState {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 
-  // Sidebar visibility (for full-screen hub mode)
+  // Sidebar visibility (for full-screen hub mode).
+  //
+  // A DESKTOP preference only. Phase 17 §2.1: below `lg` the nav is a drawer,
+  // and a closed drawer is not the same thing as a nav that does not exist —
+  // this flag used to remove the only navigation on a phone with no control
+  // left to bring it back. Read it through `useSidebarHidden()` in
+  // app/layout.tsx rather than directly, so the width check is not forgotten.
   sidebarVisible: boolean;
   setSidebarVisible: (visible: boolean) => void;
   toggleSidebar: () => void;
+
+  // Mobile nav drawer (below `lg`).
+  //
+  // Lives in the store rather than inside MobileSidebar because Phase 17 §1.1
+  // moved the TRIGGER out of the sidebar: on a POS screen the context bar owns
+  // it, so the opener and the drawer are now different components.
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
+  toggleMobileNav: () => void;
+
+  // How many mounted components are supplying their own nav trigger.
+  //
+  // A count, not a boolean: during a route transition the outgoing and incoming
+  // context bars are both mounted for a moment, and a boolean would be cleared
+  // by the one unmounting — leaving a POS screen with no trigger at all.
+  // Register with `useNavTriggerHost()`, never by calling these directly.
+  navTriggerHosts: number;
+  registerNavTriggerHost: () => void;
+  unregisterNavTriggerHost: () => void;
 
   // Restaurant settings (loaded from API)
   settings: RestaurantSettings | null;
@@ -376,6 +401,16 @@ export const usePOSStore = create<POSState>()(
       sidebarVisible: true,
       setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
       toggleSidebar: () => set((state) => ({ sidebarVisible: !state.sidebarVisible })),
+
+      // Mobile nav drawer
+      mobileNavOpen: false,
+      setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
+      toggleMobileNav: () => set((state) => ({ mobileNavOpen: !state.mobileNavOpen })),
+
+      navTriggerHosts: 0,
+      registerNavTriggerHost: () => set((s) => ({ navTriggerHosts: s.navTriggerHosts + 1 })),
+      unregisterNavTriggerHost: () =>
+        set((s) => ({ navTriggerHosts: Math.max(0, s.navTriggerHosts - 1) })),
 
       // Settings
       settings: null,

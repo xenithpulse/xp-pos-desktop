@@ -1,4 +1,4 @@
-export { default as GlobalContextBar, default } from './GlobalContextBar';
+export { default as GlobalContextBar, default, hasBottomTabBar } from './GlobalContextBar';
 export { ContextBarSlot } from './ContextBarSlot';
 export { StatBadge } from './StatBadge';
 export { SearchInput } from './SearchInput';

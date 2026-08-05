@@ -33,6 +33,7 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { useSidebarCollapsed } from "@/lib/hooks/useSidebarCollapsed";
 import { usePOSStore } from "@/stores/posStore";
+import { useMinWidth } from "@/lib/hooks/useMinWidth";
 import { hasPermission } from "@/types/admin.types";
 import type { AdminPermission, AdminRole } from "@/types/admin.types";
 
@@ -56,6 +57,25 @@ interface NavItem {
    * A restaurant that does no delivery should not carry a Delivery link.
    */
   setting?: 'showTakeaway' | 'showDelivery';
+  /**
+   * Offered on a phone. Phase 17 §2.2: on a PHONE the drawer lists ONLY the
+   * flagged entries, because a screen that cannot be used on a phone is worse
+   * offered than withheld — the person taps it, finds a four-column board at
+   * 80px a column, and concludes the software is broken.
+   *
+   * This is not a permission. Nothing here is blocked: a pasted URL still
+   * resolves and every guard still applies. The flag governs what the nav
+   * *offers*, and that is all it governs.
+   *
+   * "Phone" is below `md`, not below `lg` as §2.2's fix paragraph says. The
+   * drawer covers everything below `lg`, but 768–1024 is a TABLET, and the same
+   * document's Out-of-scope list keeps Kitchen, Analytics, Admin and the rest as
+   * "desktop/tablet screens this phase" — filtering them out below `lg` would
+   * have taken Admin away from a manager on a 900px tablet, which is not a
+   * small-screen fix but a regression. `useDeviceClass()` already draws the
+   * phone line at 768; this matches it rather than inventing a second one.
+   */
+  mobile?: boolean;
 }
 
 // Each `perms` entry MUST match the guard on the page it links to - see the
@@ -64,9 +84,11 @@ interface NavItem {
 // concludes the software is broken rather than that the door is not theirs.
 const NAV_ITEMS: NavItem[] = [
   // The four workspaces, in the order a shift uses them.
-  { href: "/dine-in", label: "Dine-In", icon: <Utensils size={NAV_ICON_SIZE} />, perms: ["manage_orders"] },
+  // Dine-In and Delivery carry `mobile` — they are the two screens Phase 17
+  // made work on a phone, and the two a waiter holding one actually needs.
+  { href: "/dine-in", label: "Dine-In", icon: <Utensils size={NAV_ICON_SIZE} />, perms: ["manage_orders"], mobile: true },
   { href: "/takeaway", label: "Takeaway", icon: <ShoppingBag size={NAV_ICON_SIZE} />, perms: ["manage_takeaway"], setting: "showTakeaway" },
-  { href: "/delivery", label: "Delivery", icon: <Bike size={NAV_ICON_SIZE} />, perms: ["manage_delivery"], setting: "showDelivery" },
+  { href: "/delivery", label: "Delivery", icon: <Bike size={NAV_ICON_SIZE} />, perms: ["manage_delivery"], setting: "showDelivery", mobile: true },
   { href: "/kitchen", label: "Kitchen", icon: <ChefHat size={NAV_ICON_SIZE} />, perms: ["view_kitchen"] },
   { href: "/daily-sheet", label: "Daily Sheet", icon: <BookOpen size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
   { href: "/analytics", label: "Analytics", icon: <BarChart3 size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
@@ -78,7 +100,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/server-management", label: "Server", icon: <Server size={NAV_ICON_SIZE} /> },
 ];
 
-function useVisibleNavItems(): NavItem[] {
+/**
+ * @param mobileOnly Restrict to entries flagged `mobile` (the drawer, on a
+ *   phone). Applies to super_admin too: "sees everything" is about permission,
+ *   and a super_admin on a phone has the same thumb as everybody else.
+ */
+function useVisibleNavItems(mobileOnly = false): NavItem[] {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const perms = session?.user?.permissions;
@@ -86,6 +113,7 @@ function useVisibleNavItems(): NavItem[] {
 
   return useMemo(() => {
     return NAV_ITEMS.filter((item) => {
+      if (mobileOnly && !item.mobile) return false;
       // A workspace the restaurant has switched off is not offered to anyone,
       // super_admin included — the point is that the site does not do it.
       // Undefined settings (not loaded yet) mean "on", so the rail does not
@@ -100,7 +128,7 @@ function useVisibleNavItems(): NavItem[] {
       const permOk = item.perms ? item.perms.some((p) => hasPermission(role, perms, p)) : false;
       return roleOk || permOk;
     });
-  }, [role, perms, hub]);
+  }, [role, perms, hub, mobileOnly]);
 }
 
 /** Home matches only the exact root; every other item matches itself + subpaths. */
@@ -432,12 +460,23 @@ function DesktopSidebar() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function MobileSidebar() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Phase 17 §1.1: the open state is in the store, not local, because the
+  // control that opens this drawer may live in a different component entirely.
+  const isSidebarOpen = usePOSStore((s) => s.mobileNavOpen);
+  const setSidebarOpen = usePOSStore((s) => s.setMobileNavOpen);
+  const toggleMobileNav = usePOSStore((s) => s.toggleMobileNav);
+  // Zero means no page chrome claimed the trigger, so the drawer supplies the
+  // floating button itself.
+  const hasHostedTrigger = usePOSStore((s) => s.navTriggerHosts > 0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
-  const navItems = useVisibleNavItems();
+  // Phase 17 §2.2: on a phone the drawer lists only the phone-ready screens.
+  // This same drawer is the nav for tablets too, and they keep the full set —
+  // see the `mobile` flag's note on why the line is `md` and not `lg`.
+  const isPhone = !useMinWidth("md");
+  const navItems = useVisibleNavItems(isPhone);
   const theme = getSidebarBg(pathname);
   const isDarkTheme = theme.bg !== "bg-white";
 
@@ -446,12 +485,17 @@ function MobileSidebar() {
     await signOut({ callbackUrl: "/login" });
   };
 
-  const handleToggle = () => setIsSidebarOpen((v) => !v);
+  const handleToggle = () => toggleMobileNav();
+
+  // A drawer left open across a navigation covers the screen it just opened.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname, setSidebarOpen]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setIsSidebarOpen(false);
+    const handleKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setSidebarOpen(false);
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setIsSidebarOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setSidebarOpen(false);
     };
     if (isSidebarOpen) {
       document.addEventListener("keydown", handleKeyDown);
@@ -461,22 +505,26 @@ function MobileSidebar() {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isSidebarOpen]);
+  }, [isSidebarOpen, setSidebarOpen]);
 
   return (
     <>
-      {/* Floating Menu Button */}
-      <motion.button
-        onClick={handleToggle}
-        className={`lg:hidden fixed top-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-xl shadow-lg border transition-colors duration-500 ${
-          isDarkTheme ? "bg-slate-900 text-white border-white/10" : "bg-white text-gray-900 border-gray-200"
-        }`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        aria-label="Open menu"
-      >
-        {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
-      </motion.button>
+      {/* Floating Menu Button — only when the page has no chrome to carry the
+          trigger. On the POS workspaces the context bar carries it, and this
+          button used to land on top of that bar's right-hand cluster. */}
+      {!hasHostedTrigger && (
+        <motion.button
+          onClick={handleToggle}
+          className={`lg:hidden fixed top-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-xl shadow-lg border transition-colors duration-500 ${
+            isDarkTheme ? "bg-slate-900 text-white border-white/10" : "bg-white text-gray-900 border-gray-200"
+          }`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label="Open menu"
+        >
+          {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
+        </motion.button>
+      )}
 
       {/* Backdrop */}
       <AnimatePresence>

@@ -465,7 +465,10 @@ export default function OrderFooter({
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5">
+                {/* Phase 17 §3.3: quick-complete tiles, two up below `sm` so a
+                    tenant's own method name has room to be read. Unchanged at
+                    `sm` and above. */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {paymentMethods.map((m) => (
                     <button
                       key={m.id}

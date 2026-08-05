@@ -194,8 +194,11 @@ export default function PaymentDrawer({
               </div>
             ) : (
               <>
-                {/* Payment Method Selector — driven by tenant settings */}
-                <div className="grid grid-cols-4 gap-2">
+                {/* Payment Method Selector — driven by tenant settings.
+                    Phase 17 §3.3: four tenant methods on a 360px screen gave
+                    each tile ~78px, and a custom method name truncated to
+                    nothing. Two up below `sm`; unchanged at `sm` and above. */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {paymentMethods.map((m) => (
                     <button
                       key={m.id}

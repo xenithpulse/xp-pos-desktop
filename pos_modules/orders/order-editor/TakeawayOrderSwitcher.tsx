@@ -163,7 +163,10 @@ export default function TakeawayOrderSwitcher({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-1.5">
+              {/* Phase 17 §3.3: two up below `sm` — these tiles carry a
+                  customer name, and three across on a phone truncated it to
+                  the point of being unusable for telling orders apart. */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {visibleOrders.map((order) => {
                   const isActive = order._id === activeOrderId;
                   const statusColor = ORDER_STATUS_COLORS[order.status] || { bg: 'bg-gray-500/20', text: 'text-gray-400' };

@@ -135,8 +135,18 @@ export default function OrderManagerGrid({
   }
 
   return (
-    <div className="flex-1 overflow-hidden p-4">
-      <div className="h-full grid grid-cols-4 gap-4">
+    // Phase 17 §3.1. This was `grid-cols-4` with no prefix at every width: four
+    // ~80px columns on a phone and four ~180px columns on a tablet in portrait,
+    // both unreadable. `lg` is today's layout, so nothing at 1024 and above
+    // moves; below it the columns stack and the board scrolls vertically, which
+    // is how a phone reads a queue anyway. The headings travel with their
+    // columns — a stack of tickets with no "Preparing" above it is just a list.
+    // Both axes are named explicitly rather than leaning on `overflow-hidden`
+    // plus `overflow-y-auto`: those set a shorthand and a longhand, so which
+    // one wins at `lg` would depend on Tailwind's utility ordering. At `lg`
+    // this is `hidden` on both axes, exactly as before.
+    <div className="flex-1 overflow-x-hidden overflow-y-auto lg:overflow-y-hidden p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:h-full">
         {columns.map((column, colIdx) => {
           const columnOrders = ordersByColumn[colIdx] || [];
           const colorClasses = {
@@ -149,7 +159,10 @@ export default function OrderManagerGrid({
           return (
             <div
               key={colIdx}
-              className="flex flex-col h-full bg-gray-900/30 rounded-xl overflow-hidden"
+              // `h-full` only where the board is a fixed-height four-column
+              // grid. Stacked, the column takes its content's height and the
+              // page scrolls instead of four independent inner scrollbars.
+              className="flex flex-col lg:h-full bg-gray-900/30 rounded-xl overflow-hidden"
             >
               {/* Column Header */}
               <div className={`

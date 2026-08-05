@@ -183,7 +183,12 @@ export default function TableSessionPanel({
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed right-0 top-0 bottom-0 w-96 bg-white shadow-2xl z-50 flex flex-col"
+        // Phase 17 §3.2: `w-96` is 384px with no max, so on a 360px phone the
+        // panel was wider than the screen and its left edge — which carries the
+        // table number and the close button — was off it. Identical at every
+        // width above 384px, so desktop does not move. Matches
+        // OrderDetailsPanel, which already had this right.
+        className="fixed right-0 top-0 bottom-0 w-full max-w-96 bg-white shadow-2xl z-50 flex flex-col"
       >
         {/* Header */}
         <div className={`px-5 py-4 border-b ${statusColors.bg}`}>

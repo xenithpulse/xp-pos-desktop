@@ -40,7 +40,7 @@ import { AnimatePresence } from 'framer-motion';
 import { LayoutGrid, Users, DollarSign, Clock, Bike, ShoppingBag, History } from 'lucide-react';
 import { hasPermission } from '@/types/admin.types';
 import { usePOSStore } from '@/stores/posStore';
-import GlobalContextBar, { ContextBarSlot, StatBadge, SearchInput, FilterDropdown } from '@/pos_modules/context-bar';
+import GlobalContextBar, { ContextBarSlot, StatBadge, SearchInput, FilterDropdown, hasBottomTabBar } from '@/pos_modules/context-bar';
 import { FloorPlanCanvas, TableSessionPanel, ResponsiveCanvasWrapper, MobileTableGrid } from '@/pos_modules/floor-plan';
 import { OrderManagerGrid, OrderManagerList, OrderDetailsPanel, OrderEditor, OrderList, flushOrderEditorCache } from '@/pos_modules/orders';
 import type { OrderEditorHandle } from '@/pos_modules/orders/order-editor';
@@ -1588,7 +1588,12 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
           return to, so the link is not shown to them rather than shown and
           bouncing them off the guard. */}
       {workspace && (
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-black px-4 py-2.5">
+        // Phase 17 §2.4: below `sm` this wraps — the icon, title and Dine-In
+        // link keep the first line and the Queue/History switch takes the
+        // second on its own, full width, because it is the real navigation on
+        // these routes now that the bottom tab bar is gone (§2.3). At `sm` and
+        // above it is one row exactly as before.
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-3 gap-y-2 border-b border-white/10 bg-black px-4 py-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             {workspace === 'delivery'
               ? <Bike size={17} className="shrink-0 text-emerald-400" />
@@ -1597,7 +1602,10 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
               <p className="text-sm font-semibold text-white leading-tight">
                 {workspace === 'delivery' ? 'Delivery' : 'Takeaway'}
               </p>
-              <p className="truncate text-[11px] text-white/40 leading-tight">
+              {/* The blurb explains the screen to somebody seeing it for the
+                  first time. On a phone the title and the queue itself already
+                  do that, and the row is the scarce thing. */}
+              <p className="hidden sm:block truncate text-[11px] text-white/40 leading-tight">
                 {workspace === 'delivery'
                   ? 'Orders going out for delivery'
                   : 'Orders being collected at the counter'}
@@ -1609,7 +1617,7 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
               design, which also hid order history from the two people most
               likely to be asked "did that 2pm collection go out?". Scoped to
               this workspace's own order type. */}
-          <div className="ml-auto flex shrink-0 rounded-lg bg-white/5 p-0.5">
+          <div className="order-last sm:order-none ml-auto flex w-full sm:w-auto shrink-0 rounded-lg bg-white/5 p-0.5">
             {([
               { id: 'queue' as const, label: 'Queue', icon: <ShoppingBag size={13} /> },
               { id: 'history' as const, label: 'History', icon: <History size={13} /> },
@@ -1617,7 +1625,7 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
               <button
                 key={v.id}
                 onClick={() => setWorkspaceView(v.id)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                   workspaceView === v.id
                     ? 'bg-emerald-600 text-white'
                     : 'text-white/50 hover:text-white'
@@ -1659,7 +1667,12 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
         activityLog={activityLog}
       />
 
-      <main className="flex-1 overflow-hidden pb-14 md:pb-0">
+      {/* pb-14 reserves the 56px the mobile bottom tab bar occupies. Phase 17
+          §2.3: only when that bar actually renders — on a pinned workspace it
+          does not, and the padding was leaving a dead strip along the bottom of
+          the one screen a delivery account ever opens. Same expression as the
+          bar's own, imported rather than restated. */}
+      <main className={`flex-1 overflow-hidden md:pb-0 ${hasBottomTabBar(hiddenTabs) ? 'pb-14' : ''}`}>
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader />

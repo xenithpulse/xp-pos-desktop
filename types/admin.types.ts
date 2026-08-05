@@ -107,8 +107,16 @@ export const ROLE_PERMISSIONS: IRolePermissions = {
     'manage_inventory',
     'view_kitchen',
   ],
+  // A waiter covers the floor AND the door. Phase 17 §2.2: the phone nav offers
+  // Dine-In and Delivery, and a waiter is the person holding the phone, so the
+  // role carries `manage_delivery` rather than the nav offering a door the
+  // guard would then refuse. This widens the account, not just the link — every
+  // route and endpoint gated on `manage_delivery` is now open to a waiter. A
+  // site that wants a floor-only waiter drops the permission on that account;
+  // per-account permissions override the role default.
   waiter: [
     'manage_orders',
+    'manage_delivery',
   ],
   // Deliberately narrow. A rider signing in should land on the delivery queue
   // and be able to reach nothing else - that is the entire point of the role.

@@ -14,6 +14,7 @@ import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
 } from "@/lib/hooks/useSidebarCollapsed";
+import { useMinWidth } from "@/lib/hooks/useMinWidth";
 
 // ==================== ROUTE ACCESS CONFIGURATION ====================
 // Define role and permission requirements for each route
@@ -199,18 +200,46 @@ function SessionTimeoutToast(): JSX.Element | null {
   );
 }
 
-function SidebarWithToggle() {
+/**
+ * Should the nav rail be removed from the tree entirely?
+ *
+ * `sidebarVisible` is a DESKTOP preference — it buys the dine-in floor plan the
+ * rail's width back. Phase 17 §2.1: below the breakpoint it is ignored
+ * outright. Down there the nav is a drawer, and a closed drawer is not the same
+ * thing as a nav that does not exist: the flag used to delete the drawer, and
+ * the only control that could set it back is in the context bar, so hiding the
+ * rail at 900px and then carrying the device below 768px left it with no
+ * navigation at all. It survived a reload only because the flag is in-memory,
+ * which is luck rather than design.
+ *
+ * The breakpoint is `lg`, where §2.1 says `md`. Below 1024 `Sidebar` renders
+ * `MobileSidebar`, and `DesktopSidebar` is itself `hidden lg:flex` — so between
+ * 768 and 1024 this flag was never collapsing a rail, only deleting the mobile
+ * drawer. That IS the reported bug, at the width most of the hardware runs at.
+ * The toggle that sets it moved to `hidden lg:flex` to match, so the control
+ * and the thing it controls now exist over the same range.
+ *
+ * `useMinWidth` reports false until its effect runs, so the first paint always
+ * keeps the rail. That is the safe direction to be wrong in.
+ */
+function useSidebarHidden(): boolean {
   const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
   const pathname = usePathname();
+  const isAtLeastLg = useMinWidth("lg");
   // The dine-in workspace is the one screen that hides the nav rail to reclaim
   // width for the floor plan. /hub is the old path, kept as a redirect.
   const isHubPage = pathname === "/dine-in" || pathname === "/hub";
   // Kitchen display: full-screen ticket board, never needs the admin nav.
   const isKitchenPage = pathname === "/kitchen";
 
+  if (isKitchenPage) return true;
+  return isHubPage && isAtLeastLg && !sidebarVisible;
+}
+
+function SidebarWithToggle() {
   // On the hub page, respect the toggle. On other pages always show.
-  if (isKitchenPage) return null;
-  if (isHubPage && !sidebarVisible) return null;
+  const hidden = useSidebarHidden();
+  if (hidden) return null;
   return <Sidebar />;
 }
 
@@ -221,24 +250,14 @@ function MainContentWithToggle({
   accessConfig: { allowedRoles?: string[]; requiredPermissions?: AdminPermission[] };
   children: React.ReactNode;
 }) {
-  const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
-  const pathname = usePathname();
-  // The dine-in workspace is the one screen that hides the nav rail to reclaim
-  // width for the floor plan. /hub is the old path, kept as a redirect.
-  const isHubPage = pathname === "/dine-in" || pathname === "/hub";
-  const isKitchenPage = pathname === "/kitchen";
-  const hideSidebar = isKitchenPage || (isHubPage && !sidebarVisible);
+  // One source of truth with SidebarWithToggle — the margin and the rail must
+  // never disagree about whether there is a rail.
+  const hideSidebar = useSidebarHidden();
 
   // Shift the content in lockstep with the sidebar's collapsed/expanded width.
   // Only applies on desktop (≥lg) — on mobile the sidebar is an overlay drawer.
   const { collapsed } = useSidebarCollapsed();
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const onResize = () => setIsDesktop(window.innerWidth >= 1024);
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const isDesktop = useMinWidth("lg");
   const marginLeft =
     isDesktop && !hideSidebar
       ? collapsed

@@ -666,7 +666,10 @@ function MoveReservationPicker({
         {candidates.length === 0 ? (
           <p className="text-xs text-gray-600 py-2">No other tables available.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
+          // Phase 17 §3.3: this picker lives inside TableSessionPanel, which is
+          // full-width on a phone, so three across left ~100px per table.
+          // Unchanged at `sm` and above.
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
             {candidates.map(({ table: t, clashes, fits, freeNow }) => (
               <button
                 key={t._id}

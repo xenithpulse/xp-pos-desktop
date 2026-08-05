@@ -44,8 +44,11 @@ import {
   Minimize,
   Settings,
   Truck,
+  Menu,
+  MoreHorizontal,
 } from 'lucide-react';
-import { usePOSStore, type NetworkQuality } from '@/stores/posStore';
+import { usePOSStore, type NetworkQuality, type ActiveTab } from '@/stores/posStore';
+import { useNavTriggerHost } from '@/lib/hooks/useNavTriggerHost';
 import { formatPrice } from '@/types/menu.types';
 import type { TabConfig, GlobalContextBarProps, SyncStatus } from './types';
 import {
@@ -92,6 +95,22 @@ const TABS: TabConfig[] = [
     icon: <History size={18} />,
   },
 ];
+
+/**
+ * Does the mobile bottom tab bar render for this tab set?
+ *
+ * Phase 17 §2.3. One tab is not a choice: on /takeaway and /delivery the pinned
+ * workspace hides every other tab, and the bar became a single full-width
+ * button pointing at the screen it was already on — while `main` went on
+ * reserving 56px (`pb-14`) underneath it for a strip of nothing.
+ *
+ * Exported so the padding and the bar are decided by the SAME expression. They
+ * were two independent guesses, and that is exactly how a phone ends up with a
+ * dead band along the bottom of the only screen it can open.
+ */
+export function hasBottomTabBar(hiddenTabs: ActiveTab[] = []): boolean {
+  return TABS.filter((t) => !hiddenTabs.includes(t.id)).length > 1;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync status helpers
@@ -171,6 +190,152 @@ function useNetworkMonitor() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Overflow menu (below `md`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phase 17 Part 1. With an order open this bar rendered SEVEN icon-only
+ * controls on the right, all of them visible on a 360px phone: two print
+ * buttons, printer status, printer settings, sync, refresh and the user chip.
+ * Nothing was labelled and nothing fitted.
+ *
+ * Below `md` they collapse to this: one tap, one sheet, every entry carrying a
+ * text label. Deliberately the same shape as `RowActionsMenu` in
+ * pos_modules/orders/List_History/OrderList.tsx — a "More" button opening a
+ * right-anchored panel of labelled rows — because two overflow menus that
+ * behave differently is worse than either one.
+ *
+ * At `md` and above this renders nothing; the seven controls stay exactly where
+ * they have always been.
+ */
+function MoreActionsMenu({
+  canPrint,
+  onPrintKOT,
+  onPrintInvoice,
+  onOpenPrinterSettings,
+  onOpenActivity,
+  onRefresh,
+  isRefreshing,
+  syncStatus,
+  activityCount,
+  userName,
+  userRole,
+}: {
+  canPrint: boolean;
+  onPrintKOT?: () => void;
+  onPrintInvoice?: () => void;
+  onOpenPrinterSettings: () => void;
+  onOpenActivity: () => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  syncStatus: SyncStatus;
+  activityCount: number;
+  userName: string;
+  userRole: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [open]);
+
+  const itemCls =
+    'w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors text-left disabled:opacity-50';
+
+  const meta = SYNC_META[syncStatus];
+  const SyncIcon = meta.icon;
+
+  const run = (fn?: () => void) => () => {
+    fn?.();
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative md:hidden" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="More actions"
+        className="flex items-center gap-1 px-2.5 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+      >
+        <MoreHorizontal size={16} />
+        <span className="text-xs font-semibold">More</span>
+        {/* The two things worth interrupting for, surfaced on the closed
+            button — otherwise collapsing the cluster also buries its alerts. */}
+        {(activityCount > 0 || isRefreshing) && (
+          <span
+            className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
+              isRefreshing ? 'bg-purple-400 animate-pulse' : 'bg-amber-400'
+            }`}
+          />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-64 max-w-[calc(100vw-1.5rem)] bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+          {/* Who is signed in. The desktop bar shows this as a chip; on a phone
+              it is the sheet's header rather than an eighth icon. */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-700">
+            <div className="w-8 h-8 shrink-0 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center">
+              <User size={15} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-white truncate">{userName}</div>
+              <div className="text-xs text-gray-400 truncate">{userRole}</div>
+            </div>
+          </div>
+
+          {canPrint && (
+            <>
+              <button onClick={run(onPrintKOT)} className={itemCls}>
+                <Printer size={15} className="text-amber-400" />
+                Print Kitchen Ticket
+              </button>
+              <button onClick={run(onPrintInvoice)} className={itemCls}>
+                <FileText size={15} className="text-blue-400" />
+                Print Receipt
+              </button>
+            </>
+          )}
+
+          <button onClick={run(onOpenPrinterSettings)} className={itemCls}>
+            <Settings size={15} className="text-gray-400" />
+            Printer Settings
+          </button>
+
+          <button onClick={run(onOpenActivity)} className={itemCls}>
+            <SyncIcon size={15} className={meta.color} />
+            <span className="flex-1">Sync &amp; Activity</span>
+            <span className={`text-xs font-medium ${meta.color}`}>{meta.label}</span>
+          </button>
+
+          <button onClick={run(onRefresh)} disabled={isRefreshing} className={itemCls}>
+            <RefreshCw size={15} className={`text-gray-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing…' : 'Refresh All Data'}
+          </button>
+
+          {/* The status widget itself rather than a second rendering of the
+              same state — it already carries its own text label and test
+              action, and two printer indicators would eventually disagree. */}
+          <div className="px-3 py-2.5 border-t border-gray-700">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Thermal printer
+            </div>
+            <ThermalPrinterStatus showTestButton={true} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -199,6 +364,7 @@ export default function GlobalContextBar({
   const cart = usePOSStore((state) => state.cart);
   const sidebarVisible = usePOSStore((state) => state.sidebarVisible);
   const toggleSidebar = usePOSStore((state) => state.toggleSidebar);
+  const toggleMobileNav = usePOSStore((state) => state.toggleMobileNav);
   const errors = usePOSStore((state) => state.errors);
   const dismissError = usePOSStore((state) => state.dismissError);
   const networkQuality = usePOSStore((state) => state.networkQuality);
@@ -206,11 +372,20 @@ export default function GlobalContextBar({
   // Monitor network quality
   useNetworkMonitor();
 
+  // Phase 17 §1.1: this bar IS the chrome on a POS workspace, so it carries the
+  // nav trigger below `lg` and the sidebar's floating button stands down. The
+  // two used to overlap — the button sat at z-50 on top of this z-40 header,
+  // covering the user chip and refresh on every POS screen under 1024px.
+  useNavTriggerHost();
+
   // Filter out hidden tabs (driven by hub settings)
   const visibleTabs = useMemo(
     () => (hiddenTabs.length ? TABS.filter((t) => !hiddenTabs.includes(t.id)) : TABS),
     [hiddenTabs],
   );
+
+  // The same expression ManagementHub uses for its bottom padding. See §2.3.
+  const showBottomTabs = hasBottomTabBar(hiddenTabs);
 
   // Activity panel open state
   const [showActivity, setShowActivity] = useState(false);
@@ -345,19 +520,29 @@ export default function GlobalContextBar({
             </div>
           </div>
 
-          {/* Center Section: Dynamic Slot + Smart Order Context */}
-          <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-x-auto scrollbar-hide">
+          {/* Center Section: Dynamic Slot + Smart Order Context
+              Phase 17 Part 1: below `md` this wraps to a second line instead of
+              becoming a horizontal scroll region. The order's number, status
+              and total were sitting off the right edge with nothing to indicate
+              they were there — a scroll affordance a thumb cannot discover is
+              the same as hiding the money. `md:` restores today's behaviour
+              exactly: nowrap, and scroll if it must. */}
+          <div className="flex-1 flex flex-wrap md:flex-nowrap items-center justify-center gap-1.5 md:gap-2 min-w-0 md:overflow-x-auto scrollbar-hide">
             {/* Slot content from parent */}
             {getActiveSlot()}
 
             {/* Smart Order Context — shown when in editor/takeaway mode with an order */}
             {isEditorContext && order && (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 md:flex-shrink-0">
                 {/* Table / Quick Order badge */}
                 {focusedContext.table ? (
                   <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-500/15 border border-purple-500/25 rounded-lg" title={`Table ${focusedContext.table.tableNumber}`}>
                     <UtensilsCrossed size={13} className="text-purple-400" />
-                    <span className="text-xs font-semibold text-purple-300 hidden md:inline">
+                    {/* Phase 17 Part 1: the table number is the order's whole
+                        identity and it appears nowhere else on a phone, so it
+                        is no longer `hidden md:inline`. Unchanged at md+ —
+                        it was already inline there. */}
+                    <span className="text-xs font-semibold text-purple-300">
                       T-{focusedContext.table.tableNumber}
                     </span>
                   </div>
@@ -484,19 +669,25 @@ export default function GlobalContextBar({
               <span className="hidden xl:inline text-xs font-medium">{netMeta.label}</span>
             </div>
 
-            {/* Fullscreen Toggle */}
+            {/* Fullscreen Toggle — Phase 17 Part 1: `sm` → `md`. A phone browser
+                has no chrome worth reclaiming and no keyboard to leave
+                fullscreen with. Unchanged at md and above. */}
             <button
               onClick={toggleFullscreen}
-              className="hidden sm:flex p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              className="hidden md:flex p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
             </button>
 
-            {/* Sidebar Toggle */}
+            {/* Sidebar Toggle — Phase 17 §2.1: `md` → `lg`. There is no rail
+                below 1024 to collapse; `DesktopSidebar` is `hidden lg:flex`
+                and `Sidebar` swaps to the drawer under it. Between 768 and
+                1024 this button was deleting the mobile drawer instead, which
+                is the bug §2.1 exists to fix. Unchanged at lg and above. */}
             <button
               onClick={toggleSidebar}
-              className="hidden md:flex p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              className="hidden lg:flex p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
             >
               {sidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
@@ -513,6 +704,11 @@ export default function GlobalContextBar({
               </button>
             )}
 
+            {/* ── Below `md`, everything from here down collapses into the one
+                labelled "More" sheet that follows this wrapper. The wrapper
+                repeats the parent's gap classes, so at md and above the seven
+                controls sit exactly where they always have. ─────────────── */}
+            <div className="hidden md:flex items-center gap-1.5 md:gap-2">
             {/* Print Actions (Order Editor / Takeaway tab with order) */}
             {isEditorContext && focusedContext.orderId && (
               <div className="flex items-center gap-1.5">
@@ -600,6 +796,36 @@ export default function GlobalContextBar({
               </div>
               <ChevronDown size={14} className="text-gray-400 hidden lg:block" />
             </button>
+            </div>
+            {/* ── end of the md+ cluster ──────────────────────────────────── */}
+
+            {/* The same seven controls, below `md`, labelled and in one sheet. */}
+            <MoreActionsMenu
+              canPrint={Boolean(isEditorContext && focusedContext.orderId)}
+              onPrintKOT={onPrintKOT}
+              onPrintInvoice={onPrintInvoice}
+              onOpenPrinterSettings={() => setShowPrinterSettings(true)}
+              onOpenActivity={() => setShowActivity(true)}
+              onRefresh={handleRefresh}
+              isRefreshing={isRefreshing}
+              syncStatus={syncStatus}
+              activityCount={activityLog.length}
+              userName={userName}
+              userRole={userRole}
+            />
+
+            {/* Nav trigger. Phase 17 §1.1: below `lg` the drawer is the
+                navigation, and this bar owns the control that opens it — the
+                sidebar's floating button used to land on top of this cluster.
+                `lg`, not `md`, because Sidebar swaps to the drawer at 1024. */}
+            <button
+              onClick={toggleMobileNav}
+              className="lg:hidden flex items-center justify-center p-2 rounded-lg bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+              aria-label="Open navigation menu"
+              title="Menu"
+            >
+              <Menu size={16} />
+            </button>
           </div>
         </div>
 
@@ -646,7 +872,7 @@ export default function GlobalContextBar({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.12 }}
-              className="absolute right-4 top-14 z-50 w-80 max-h-72 overflow-y-auto
+              className="absolute right-4 top-14 z-50 w-80 max-w-[calc(100vw-2rem)] max-h-72 overflow-y-auto
                 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl"
             >
               <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
@@ -707,6 +933,14 @@ export default function GlobalContextBar({
       </header>
 
       {/* ── Mobile Bottom Tab Bar ──────────────────────────────────────────── */}
+      {/* Phase 17 §2.3: a tab bar needs somewhere to go. On /takeaway and
+          /delivery `hiddenTabs` leaves exactly one visible tab, and this
+          rendered a single full-width button that navigated to the screen you
+          were already on. On those routes the Queue/History switch in the
+          workspace header is the real navigation. `showBottomTabs` is exported
+          through the same rule in ManagementHub so `main` drops its matching
+          56px of padding — see the comment on `pb-14` there. */}
+      {showBottomTabs && (
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-800 px-2 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around">
           {visibleTabs.map((tab) => {
@@ -740,6 +974,7 @@ export default function GlobalContextBar({
           })}
         </div>
       </nav>
+      )}
 
       {/* ── Printer Settings Slide-in Panel ─────────────────────────────────── */}
       <AnimatePresence>
