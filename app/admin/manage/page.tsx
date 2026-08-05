@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
+import RequirePermission from '@/components/auth/RequirePermission';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutGrid,
@@ -62,6 +63,14 @@ const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminManagePage() {
+  return (
+    <RequirePermission permission="manage_menu">
+      <AdminManagePageInner />
+    </RequirePermission>
+  );
+}
+
+function AdminManagePageInner() {
   const [activeTab, setActiveTab] = useState<AdminTab>('tables');
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);

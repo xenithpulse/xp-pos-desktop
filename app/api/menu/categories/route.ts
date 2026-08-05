@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest } from '@/lib/auth';
+import { MENU_READ_PERMS } from '@/types/admin.types';
 import { CategoryModel, getCategoriesWithCounts } from '@/models/factories/Menu';
 import { broadcastEvent } from '@/lib/realtime/eventBus';
 
@@ -13,7 +14,8 @@ const log = console.log;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const denied = await isAdminRequest({ requiredPerm: 'manage_menu' });
+  // READ, not edit — see the note on the items route.
+  const denied = await isAdminRequest({ anyPerm: MENU_READ_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();

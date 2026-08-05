@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest } from '@/lib/auth';
+import { ORDER_WORKSPACE_PERMS, ORDER_READ_PERMS } from '@/types/admin.types';
 import { OrderModel } from '@/models/factories/Order';
 import { TableModel } from '@/models/factories/Table';
 import { TableSessionModel } from '@/models/factories/TableSession';
@@ -41,10 +42,11 @@ const PAYMENT_STATUS_NAMES = ['pending', 'paid', 'partial', 'split', 'credit', '
 // GET - Retrieve single order by ID
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Readable by the kitchen too - see ORDER_READ_PERMS.
 export async function GET(request: NextRequest) {
   const id = extractId(request, 3);
-  
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+
+  const denied = await isAdminRequest({ anyPerm: ORDER_READ_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();
@@ -96,7 +98,7 @@ interface OrderUpdatePayload {
 export async function PUT(request: NextRequest) {
   const id = extractId(request, 3);
 
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const denied = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();
@@ -207,7 +209,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const id = extractId(request, 3);
 
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const denied = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();
@@ -267,10 +269,13 @@ export async function DELETE(request: NextRequest) {
 // PATCH - Quick status update (with optimistic concurrency)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Status transitions, which is how the kitchen moves a ticket from preparing
+// to ready. Wider than PUT and DELETE above on purpose: a chef may advance an
+// order, and must not be able to rewrite or delete one.
 export async function PATCH(request: NextRequest) {
   const id = extractId(request, 3);
 
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const denied = await isAdminRequest({ anyPerm: ORDER_READ_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();

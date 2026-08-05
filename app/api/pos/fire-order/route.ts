@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest, getSession } from '@/lib/auth';
+import { ORDER_WORKSPACE_PERMS } from '@/types/admin.types';
 import { OrderModel } from '@/models/factories/Order';
 import { TableModel } from '@/models/factories/Table';
 import { TableSessionModel } from '@/models/factories/TableSession';
@@ -48,7 +49,7 @@ interface FireOrderRequest {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const denied = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (denied) return denied;
 
   const authSession = await getSession();

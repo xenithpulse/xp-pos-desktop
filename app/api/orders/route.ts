@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest } from '@/lib/auth';
+import { ORDER_WORKSPACE_PERMS, ORDER_READ_PERMS } from '@/types/admin.types';
 import { OrderModel, generateOrderNumber } from '@/models/factories/Order';
 import { 
   IOrder, 
@@ -25,8 +26,10 @@ const log = console.log;
 // GET - Retrieve orders with optional filters
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Wider than POST below: the kitchen display reads this queue, and a chef
+// holds view_kitchen rather than any order permission. See ORDER_READ_PERMS.
 export async function GET(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const authResult = await isAdminRequest({ anyPerm: ORDER_READ_PERMS });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();
@@ -140,7 +143,7 @@ export async function POST(req: NextRequest) {
   // read-only, and read-only for a restaurant means "no new orders" - the
   // fifteen tables already mid-meal must still be editable, payable and
   // printable, so PATCH/PUT on an existing order is deliberately not gated.
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders', license: 'write' });
+  const authResult = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS, license: 'write' });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();
@@ -254,7 +257,7 @@ export async function POST(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function statsHandler(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const authResult = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();

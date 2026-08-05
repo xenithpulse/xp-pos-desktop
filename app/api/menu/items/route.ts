@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Types } from 'mongoose';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest } from '@/lib/auth';
+import { MENU_READ_PERMS } from '@/types/admin.types';
 import {
   MenuItemModel,
   getMenuItemsByCategory,
@@ -21,7 +22,11 @@ const log = console.log;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const denied = await isAdminRequest({ requiredPerm: 'manage_menu' });
+  // READ, not edit. Anyone who takes an order needs the dish list, and the
+  // kitchen needs item names and stations to render a ticket. Gating both on
+  // manage_menu meant a cashier or a takeaway-only account could not load the
+  // menu it needed to build an order. Editing, below, still requires it.
+  const denied = await isAdminRequest({ anyPerm: MENU_READ_PERMS });
   if (denied) return denied;
 
   const conn = await mongooseConnect();

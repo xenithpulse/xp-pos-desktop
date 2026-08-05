@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { AdminModel } from '@/models/factories/Admin';
 import { isAdminRequest, getSession } from '@/lib/auth';
+import { ORDER_WORKSPACE_PERMS } from '@/types/admin.types';
 import { OrderModel, generateOrderNumber } from '@/models/factories/Order';
 import { CustomerModel } from '@/models/factories/Customer';
 import { broadcastEvent } from '@/lib/realtime/eventBus';
@@ -22,7 +23,7 @@ const PAYMENT_PENDING = 0;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const denied = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const denied = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (denied) return denied;
 
   const authSession = await getSession();
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const authResult = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (authResult) return authResult;
 
   const conn = await mongooseConnect();

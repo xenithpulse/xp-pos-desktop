@@ -121,6 +121,53 @@ export const ROLE_PERMISSIONS: IRolePermissions = {
 };
 
 /**
+ * Everyone who takes an order, whatever kind of order it is.
+ *
+ * Dine-in, takeaway and delivery all run through the same order endpoints -
+ * create, fire, patch, read stats - but the people doing them hold different
+ * permissions. A takeaway-only account has `manage_takeaway` and nothing else,
+ * so a route guarded on `manage_orders` alone locks it out of the very
+ * workspace the role exists for.
+ *
+ * Use with `anyPerm` in isAdminRequest(). Named as a set rather than spelled
+ * out at each call site so that adding a fourth order type later is one edit.
+ */
+export const ORDER_WORKSPACE_PERMS: AdminPermission[] = [
+  'manage_orders',
+  'manage_takeaway',
+  'manage_delivery',
+];
+
+/**
+ * Everyone who may read orders and advance their status.
+ *
+ * The order workspaces plus the kitchen. A chef holds `view_kitchen` and none
+ * of the order permissions - correctly, because a chef must not be able to
+ * CREATE or DELETE an order - but the ticket board still has to read the active
+ * queue and move a ticket from preparing to ready. So reads and status changes
+ * take this wider set; creating and deleting stay on ORDER_WORKSPACE_PERMS.
+ */
+export const ORDER_READ_PERMS: AdminPermission[] = [
+  ...ORDER_WORKSPACE_PERMS,
+  'view_kitchen',
+];
+
+/**
+ * Everyone who may READ the menu.
+ *
+ * Reading the menu and editing it are different jobs, and conflating them was a
+ * real bug: `manage_menu` gated both, so a cashier or a takeaway account could
+ * not load the list of dishes it needed to build an order. Editing stays on
+ * `manage_menu`; reading is available to anyone who can take an order, plus the
+ * kitchen, which needs item names and stations to render tickets.
+ */
+export const MENU_READ_PERMS: AdminPermission[] = [
+  ...ORDER_WORKSPACE_PERMS,
+  'manage_menu',
+  'view_kitchen',
+];
+
+/**
  * The permissions a user actually has.
  *
  * The union of what is stored on the account and what their role grants, and

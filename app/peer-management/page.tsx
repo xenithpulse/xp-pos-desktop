@@ -2,6 +2,7 @@
 
 import React, { useState, JSX } from "react";
 import { motion } from "framer-motion"; // Import motion
+import RequirePermission from "@/components/auth/RequirePermission";
 import AdminsPage from "@/features/PeerManagement/Admins";
 import StaffPage from "@/features/PeerManagement/StaffManagement";
 
@@ -14,6 +15,14 @@ const IconStaff = ({ className }: { className?: string }) => (
 );
 
 export default function PeerManagement() {
+  return (
+    <RequirePermission permission="manage_staff">
+      <PeerManagementInner />
+    </RequirePermission>
+  );
+}
+
+function PeerManagementInner() {
   const [activeTab, setActiveTab] = useState<"admins" | "staff">("admins");
 
   // Define tabs with icons for a professional look

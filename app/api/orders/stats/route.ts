@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mongooseConnect } from '@/lib/mongoose';
 import { isAdminRequest } from '@/lib/auth';
+import { ORDER_WORKSPACE_PERMS } from '@/types/admin.types';
 import { OrderModel } from '@/models/factories/Order';
 
 const log = console.log;
@@ -45,7 +46,7 @@ let statsInflight: Promise<unknown> | null = null;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const authResult = await isAdminRequest({ requiredPerm: 'manage_orders' });
+  const authResult = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
   if (authResult) return authResult;
 
   // Serve a warm cache without touching the database.

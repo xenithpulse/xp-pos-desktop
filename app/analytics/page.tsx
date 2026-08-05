@@ -6,6 +6,7 @@
 // Each tab lazy-loads its own data; the range selector is shared across tabs.
 
 import { useCallback, useEffect, useState } from 'react';
+import RequirePermission from '@/components/auth/RequirePermission';
 import { BarChart3, Utensils, Boxes, Landmark, RefreshCw } from 'lucide-react';
 import { useClientTz } from './_components/shared';
 import SalesTab from './_components/SalesTab';
@@ -35,6 +36,14 @@ function tabFromHash(): TabId {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <RequirePermission permission="view_reports">
+      <AnalyticsPageInner />
+    </RequirePermission>
+  );
+}
+
+function AnalyticsPageInner() {
   const [tab, setTab] = useState<TabId>('sales');
   const [days, setDays] = useState(30);
   const [nonce, setNonce] = useState(0); // bump to force the active tab to refetch

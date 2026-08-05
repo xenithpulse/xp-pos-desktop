@@ -5,6 +5,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import RequirePermission from '@/components/auth/RequirePermission';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -34,6 +35,14 @@ const TABS: { id: InvTab; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function InventoryControlCenterPage() {
+  return (
+    <RequirePermission permission="manage_inventory">
+      <InventoryControlCenterPageInner />
+    </RequirePermission>
+  );
+}
+
+function InventoryControlCenterPageInner() {
   const [activeTab, setActiveTab] = useState<InvTab>('overview');
   const validTabs = TABS.map((t) => t.id) as InvTab[];
 

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import RequirePermission from "@/components/auth/RequirePermission";
 import DailyExpenseInput from "@/features/sheets/daily/DailySheet";
 import DailySheetsHistory from "@/features/sheets/daily/DailySheetsHistory";
 import {
@@ -136,6 +137,14 @@ const TabButton: React.FC<TabButtonProps> = ({ tab, activeTab, onClick }) => {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DailySheetPage() {
+  return (
+    <RequirePermission permission="view_reports">
+      <DailySheetPageInner />
+    </RequirePermission>
+  );
+}
+
+function DailySheetPageInner() {
   const [activeTab, setActiveTab] = useState<TabName>(DEFAULT_TAB);
   const { data: session } = useSession();
 

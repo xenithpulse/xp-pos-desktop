@@ -26,9 +26,13 @@ import {
   BarChart3,
   ChevronsLeft,
   ChevronsRight,
+  ShoppingBag,
+  Bike,
+  ChefHat,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useSidebarCollapsed } from "@/lib/hooks/useSidebarCollapsed";
+import { hasPermission } from "@/types/admin.types";
 import type { AdminPermission, AdminRole } from "@/types/admin.types";
 
 const NAV_ICON_SIZE = 20;
@@ -46,27 +50,39 @@ interface NavItem {
   roles?: AdminRole[];
 }
 
+// Each `perms` entry MUST match the guard on the page it links to - see the
+// RequirePermission wrapper in the corresponding app/**/page.tsx. A link that
+// is visible but leads to a redirect is worse than no link, because the user
+// concludes the software is broken rather than that the door is not theirs.
 const NAV_ITEMS: NavItem[] = [
   { href: "/hub", label: "POS Floor", icon: <Utensils size={NAV_ICON_SIZE} />, perms: ["manage_orders"] },
-  { href: "/daily-sheet", label: "Daily Sheet", icon: <BookOpen size={NAV_ICON_SIZE} />, perms: ["manage_orders", "view_reports"] },
-  { href: "/analytics", label: "Analytics", icon: <BarChart3 size={NAV_ICON_SIZE} />, roles: ["super_admin"] },
+  { href: "/takeaway", label: "Takeaway", icon: <ShoppingBag size={NAV_ICON_SIZE} />, perms: ["manage_takeaway"] },
+  { href: "/delivery", label: "Delivery", icon: <Bike size={NAV_ICON_SIZE} />, perms: ["manage_delivery"] },
+  { href: "/kitchen", label: "Kitchen", icon: <ChefHat size={NAV_ICON_SIZE} />, perms: ["view_kitchen"] },
+  { href: "/daily-sheet", label: "Daily Sheet", icon: <BookOpen size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
+  { href: "/analytics", label: "Analytics", icon: <BarChart3 size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
   { href: "/admin/inventory", label: "Inventory", icon: <Boxes size={NAV_ICON_SIZE} />, perms: ["manage_inventory"] },
-  { href: "/admin/manage", label: "Admin", icon: <Settings size={NAV_ICON_SIZE} />, roles: ["super_admin", "manager"], perms: ["manage_settings", "manage_staff"] },
-  { href: "/peer-management", label: "Peers", icon: <GitBranch size={NAV_ICON_SIZE} />, roles: ["super_admin"] },
-  { href: "/server-management", label: "Server", icon: <Server size={NAV_ICON_SIZE} />, roles: ["super_admin"] },
+  { href: "/admin/manage", label: "Admin", icon: <Settings size={NAV_ICON_SIZE} />, perms: ["manage_menu"] },
+  { href: "/peer-management", label: "Peers", icon: <GitBranch size={NAV_ICON_SIZE} />, perms: ["manage_staff"] },
+  // Deliberately ungated: the server screen is the recovery surface, and it is
+  // public by design - see app/server-management/page.tsx.
+  { href: "/server-management", label: "Server", icon: <Server size={NAV_ICON_SIZE} /> },
 ];
 
 function useVisibleNavItems(): NavItem[] {
   const { data: session } = useSession();
-  const role = (session?.user?.role || "") as AdminRole | "";
-  const perms = (session?.user?.permissions || []) as AdminPermission[];
+  const role = session?.user?.role;
+  const perms = session?.user?.permissions;
 
   return useMemo(() => {
     return NAV_ITEMS.filter((item) => {
       if (role === "super_admin") return true; // super admin sees everything
       if (!item.roles && !item.perms) return true; // ungated
       const roleOk = item.roles ? item.roles.includes(role as AdminRole) : false;
-      const permOk = item.perms ? item.perms.some((p) => perms.includes(p)) : false;
+      // hasPermission() rather than a bare .includes(): it falls back to the
+      // role's defaults, so a session minted before permissions were resolved
+      // at sign-in still shows the right nav instead of an empty rail.
+      const permOk = item.perms ? item.perms.some((p) => hasPermission(role, perms, p)) : false;
       return roleOk || permOk;
     });
   }, [role, perms]);

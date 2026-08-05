@@ -425,23 +425,38 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
 
   // Refresh All
 
+  // Same scoping as the initial load below, and for the same reason: this is
+  // the manual refresh button, so on a pinned workspace it would otherwise fire
+  // a 403 at /api/tables every time somebody pressed it.
   const refreshAll = useCallback(() => {
-    fetchTables();
-    fetchOrders();
+    if (!workspace) {
+      fetchTables();
+      fetchOrders();
+    }
     fetchOrderStats();
-    fetchTakeawayOrders();
-    fetchDeliveryOrders();
-  }, [fetchTables, fetchOrders, fetchOrderStats, fetchTakeawayOrders, fetchDeliveryOrders]);
+    if (!workspace || workspace === 'takeaway') fetchTakeawayOrders();
+    if (!workspace || workspace === 'delivery') fetchDeliveryOrders();
+  }, [workspace, fetchTables, fetchOrders, fetchOrderStats, fetchTakeawayOrders, fetchDeliveryOrders]);
 
   // Initial load — runs once on mount (empty deps for fetchers that are stable)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchTables();
-    fetchSections();
-    fetchOrders();
+    // A pinned workspace fetches only what it renders.
+    //
+    // Not just a saving. /api/tables requires manage_orders, and a
+    // takeaway-only or delivery-only account does not hold it - so fetching the
+    // floor plan here would fire two guaranteed 403s on every load of the one
+    // screen that user ever opens. The errors are caught and invisible, which
+    // makes them worse: a console full of forbidden requests is exactly the
+    // noise that hides the real failure later.
+    if (!workspace) {
+      fetchTables();
+      fetchSections();
+      fetchOrders();
+    }
     fetchOrderStats();
-    fetchTakeawayOrders();
-    fetchDeliveryOrders();
+    if (!workspace || workspace === 'takeaway') fetchTakeawayOrders();
+    if (!workspace || workspace === 'delivery') fetchDeliveryOrders();
 
     // Fetch restaurant settings into global store
     fetch('/api/settings')

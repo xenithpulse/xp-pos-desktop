@@ -50,8 +50,8 @@ const QUICK_LINKS: {
   { href: "/kitchen", label: "Kitchen Display", desc: "Live ticket board for the pass", icon: <ChefHat size={20} />, accent: "amber", perm: "view_kitchen" },
   { href: "/daily-sheet", label: "Daily Sheet", desc: "Open the day, record income & expenses", icon: <BookOpen size={20} />, accent: "emerald", perm: "view_reports" },
   { href: "/admin/inventory", label: "Inventory", desc: "Stock levels, valuation & alerts", icon: <Boxes size={20} />, accent: "amber", perm: "manage_inventory" },
-  { href: "/admin/manage", label: "Admin", desc: "Menu, staff, tables & settings", icon: <Settings size={20} />, accent: "violet", perm: "manage_settings" },
-  { href: "/peer-management", label: "Peers", desc: "Connected devices & peers", icon: <GitBranch size={20} />, accent: "sky", perm: "manage_settings" },
+  { href: "/admin/manage", label: "Admin", desc: "Menu, tables, categories & stock items", icon: <Settings size={20} />, accent: "violet", perm: "manage_menu" },
+  { href: "/peer-management", label: "Peers", desc: "Staff accounts & connected devices", icon: <GitBranch size={20} />, accent: "sky", perm: "manage_staff" },
   { href: "/server-management", label: "Server", desc: "Backups & server control", icon: <Server size={20} />, accent: "rose", perm: null },
 ];
 
