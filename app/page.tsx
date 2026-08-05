@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { erp_business_type, erp_version } from "@/config/system_info";
 import { hasPermission, type AdminPermission } from "@/types/admin.types";
+import { usePOSStore } from "@/stores/posStore";
 
 // ─── Inspirational quotes (kept from the previous home screen) ───────────────
 const quotes = [
@@ -43,10 +44,12 @@ const QUICK_LINKS: {
   icon: React.ReactNode;
   accent: Accent;
   perm: AdminPermission | null;
+  /** Hub setting that must be on for this tile to appear. See Sidebar.NavItem. */
+  setting?: 'showTakeaway' | 'showDelivery';
 }[] = [
-  { href: "/hub", label: "POS Floor", desc: "Take orders, manage tables & the floor", icon: <Utensils size={20} />, accent: "cyan", perm: "manage_orders" },
-  { href: "/takeaway", label: "Takeaway", desc: "Orders collected at the counter", icon: <ShoppingBag size={20} />, accent: "emerald", perm: "manage_takeaway" },
-  { href: "/delivery", label: "Delivery", desc: "Orders going out for delivery", icon: <Bike size={20} />, accent: "sky", perm: "manage_delivery" },
+  { href: "/dine-in", label: "Dine-In", desc: "Take orders, manage tables & the floor", icon: <Utensils size={20} />, accent: "cyan", perm: "manage_orders" },
+  { href: "/takeaway", label: "Takeaway", desc: "Orders collected at the counter", icon: <ShoppingBag size={20} />, accent: "emerald", perm: "manage_takeaway", setting: "showTakeaway" },
+  { href: "/delivery", label: "Delivery", desc: "Orders going out for delivery", icon: <Bike size={20} />, accent: "sky", perm: "manage_delivery", setting: "showDelivery" },
   { href: "/kitchen", label: "Kitchen Display", desc: "Live ticket board for the pass", icon: <ChefHat size={20} />, accent: "amber", perm: "view_kitchen" },
   { href: "/daily-sheet", label: "Daily Sheet", desc: "Open the day, record income & expenses", icon: <BookOpen size={20} />, accent: "emerald", perm: "view_reports" },
   { href: "/admin/inventory", label: "Inventory", desc: "Stock levels, valuation & alerts", icon: <Boxes size={20} />, accent: "amber", perm: "manage_inventory" },
@@ -68,6 +71,7 @@ const ACCENT: Record<Accent, { chip: string; ring: string; glow: string }> = {
 export default function Home() {
   const { data: session } = useSession();
   const user = session?.user;
+  const hub = usePOSStore((s) => s.settings?.hub);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [greeting, setGreeting] = useState<string>("Hello");
   const [location, setLocation] = useState<string>("Detecting…");
@@ -82,10 +86,14 @@ export default function Home() {
   // small grid that grows.
   const visibleLinks = useMemo(
     () =>
-      QUICK_LINKS.filter(
-        (link) => link.perm === null || hasPermission(user?.role, user?.permissions, link.perm),
-      ),
-    [user?.role, user?.permissions],
+      QUICK_LINKS.filter((link) => {
+        // A workspace the restaurant has switched off is not offered at all.
+        // Undefined settings mean "not loaded yet" → shown, same reasoning as
+        // the sidebar: a tile that appears is better than one that vanishes.
+        if (link.setting && hub && hub[link.setting] === false) return false;
+        return link.perm === null || hasPermission(user?.role, user?.permissions, link.perm);
+      }),
+    [user?.role, user?.permissions, hub],
   );
 
   // Live clock

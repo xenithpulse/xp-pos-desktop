@@ -15,11 +15,12 @@ import {
   CreditCard,
   Building2,
   Wallet,
+  Receipt,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
 import { ICart, formatPrice } from '@/types/menu.types';
-import { Order } from '@/types/order.types';
+import { Order, PAYMENT_METHOD_LABELS } from '@/types/order.types';
 import type { IPaymentMethodConfig } from '@/types/settings.types';
 import type { LifecycleAction } from './types';
 
@@ -96,6 +97,8 @@ export default function OrderFooter({
   const [showLifecycleActions, setShowLifecycleActions] = useState(false);
 
   const due = activeOrder?.amountDue ?? 0;
+  const isFullyPaid = !!activeOrder && due <= 0 && (activeOrder.amountPaid ?? 0) > 0;
+  const paymentCount = activeOrder?.transactions?.length ?? 0;
   const tenderedNum = parseFloat(tendered);
   const change = !isNaN(tenderedNum) && tenderedNum > due ? tenderedNum - due : 0;
 
@@ -155,13 +158,30 @@ export default function OrderFooter({
             <span>Grand Total</span>
             <span>{formatPrice(activeOrder.grandTotal)}</span>
           </div>
+          {/* One line per payment, so a bill settled across two methods reads
+              as two entries rather than a single blurred total (§2.2). */}
+          {paymentCount > 0 && (
+            <>
+              {activeOrder.transactions.map((tx, idx) => (
+                <div
+                  key={tx._id || idx}
+                  className="flex justify-between text-gray-400 text-xs"
+                >
+                  <span className="truncate pr-2">
+                    Paid · {tx.methodLabel || PAYMENT_METHOD_LABELS[tx.method]}
+                  </span>
+                  <span className="flex-shrink-0">{formatPrice(tx.amount)}</span>
+                </div>
+              ))}
+            </>
+          )}
           {activeOrder.amountDue > 0 && (
             <div className="flex justify-between text-orange-400 text-sm font-medium">
-              <span>Amount Due</span>
+              <span>Left to Pay</span>
               <span>{formatPrice(activeOrder.amountDue)}</span>
             </div>
           )}
-          {activeOrder.paymentStatus === 'paid' && activeOrder.status !== 'draft' && (
+          {isFullyPaid && activeOrder.status !== 'draft' && (
             <div className="flex items-center justify-center gap-2 text-green-400 text-sm font-semibold pt-1">
               <CheckCircle2 size={14} />
               <span>Fully Paid</span>
@@ -226,7 +246,7 @@ export default function OrderFooter({
             className="flex items-center gap-1 px-2 py-1 bg-green-500/30 hover:bg-green-500/50 rounded text-green-200 text-xs font-medium transition-colors"
           >
             <Printer size={12} />
-            Print KOT
+            Print Kitchen Ticket
           </button>
         </div>
       )}
@@ -290,21 +310,48 @@ export default function OrderFooter({
         </div>
       )}
 
-      {/* ── Add Payment (partial / reference capture) ─────────────────── */}
-      {canPay && (activeOrder?.amountDue ?? 0) > 0 && (
-        <button
-          onClick={onOpenPayment}
-          disabled={isCompletingOrder || isPerformingAction}
-          className={`w-full flex items-center justify-center gap-2 py-2 md:py-2.5 rounded-lg font-semibold text-xs md:text-sm transition-all ${
-            isCompletingOrder || isPerformingAction
-              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-              : 'bg-gray-800 text-green-400 border border-green-500/30 hover:bg-gray-700 hover:border-green-500/50'
-          }`}
-        >
-          <Wallet size={16} />
-          <span>Add Payment</span>
-          <span className="ml-auto font-medium">{formatPrice(activeOrder!.amountDue)}</span>
-        </button>
+      {/* ── Payment ───────────────────────────────────────────────────────
+          Phase 16 §2.3: when nothing is owed the control is disabled with the
+          reason stated, not silently removed. Overpayment is not a rounding
+          annoyance — it is a real cash-drawer discrepancy at close, and the
+          person who caused it has gone home. */}
+      {canPay && (
+        <div className="space-y-1.5">
+          <button
+            onClick={onOpenPayment}
+            disabled={isCompletingOrder || isPerformingAction || isFullyPaid}
+            className={`w-full flex items-center justify-center gap-2 py-2 md:py-2.5 rounded-lg font-semibold text-xs md:text-sm transition-all ${
+              isCompletingOrder || isPerformingAction || isFullyPaid
+                ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-800 text-green-400 border border-green-500/30 hover:bg-gray-700 hover:border-green-500/50'
+            }`}
+          >
+            <Wallet size={16} />
+            <span>Add Payment</span>
+            {!isFullyPaid && (
+              <span className="ml-auto font-medium">{formatPrice(due)}</span>
+            )}
+          </button>
+
+          {isFullyPaid && (
+            <p className="text-[11px] text-gray-500 text-center">
+              This order is fully paid.
+            </p>
+          )}
+
+          {/* Still reachable when settled — a wrong method or amount has to be
+              removable without a trip to the database. */}
+          {isFullyPaid && paymentCount > 0 && (
+            <button
+              onClick={onOpenPayment}
+              disabled={isCompletingOrder || isPerformingAction}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium text-gray-300 bg-gray-800/60 border border-gray-700 hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              <Receipt size={14} />
+              Payments Taken ({paymentCount})
+            </button>
+          )}
+        </div>
       )}
 
       {/* ── Quick Complete Order with Payment Method ──────────────────── */}
@@ -327,8 +374,8 @@ export default function OrderFooter({
                 ) : (
                   <CheckCircle2 size={16} />
                 )}
-                <span className="hidden sm:inline">Complete Order & Mark Paid</span>
-                <span className="sm:hidden">Complete & Pay</span>
+                <span className="hidden sm:inline">Close Order &amp; Take Payment</span>
+                <span className="sm:hidden">Close &amp; Pay</span>
               </button>
             ) : (
               <div className="p-2 rounded-lg bg-gray-800/80 border border-gray-700 space-y-2">

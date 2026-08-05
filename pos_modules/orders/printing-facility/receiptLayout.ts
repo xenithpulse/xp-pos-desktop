@@ -60,6 +60,15 @@ export interface ReceiptLayoutData {
   paymentMethod?: string;
   amountPaid?: number;
   change?: number;
+  /**
+   * Every payment taken on this order, in the order they were taken.
+   * `label` is the tenant's own method name (`methodLabel`/`mn`) so a custom
+   * method survives onto the receipt, falling back to the coarse category.
+   *
+   * Only used when there is more than one — an order settled by a single
+   * method still prints exactly as it always has. See the PAYMENT section.
+   */
+  payments?: { label: string; amount: number }[];
 
   footerMessage?: string;
   /** True when a logo should occupy a centered block (preview shows it, print rasters it). */
@@ -328,14 +337,38 @@ export function renderReceipt(data: ReceiptLayoutData, options: ReceiptRenderOpt
   divider();
 
   // ── PAYMENT ────────────────────────────────────────────────────────────────
-  const hasPayment = (f.paymentMethod && data.paymentMethod) ||
-    (f.amountPaid && data.amountPaid !== undefined) ||
-    (f.change && data.change !== undefined && data.change > 0);
-  if (hasPayment) {
-    if (f.paymentMethod && data.paymentMethod) push(L.totalsRow('Payment:', data.paymentMethod), 'l');
-    if (f.amountPaid && data.amountPaid !== undefined) push(L.totalsRow('Amount Paid:', money(data.amountPaid)), 'l');
-    if (f.change && data.change !== undefined && data.change > 0) push(L.totalsRow('Change:', money(data.change)), 'l');
+  // A bill settled across two methods used to print as though one method had
+  // paid all of it, which is wrong on a document a customer keeps and an
+  // accountant reads. An order paid by ONE method still prints byte-identically
+  // to before — this is the most-printed artefact in the product.
+  const isSplit = f.amountPaid && (data.payments?.length ?? 0) > 1;
+
+  if (isSplit) {
+    const pays = data.payments!;
+    // Two-space indent so the lines read as belonging to "Paid" above them.
+    const indentedRow = (label: string, value: string) => L.totalsRow('  ' + label, value);
+    push('Paid', 'l', { bold: true });
+    pays.forEach((pay, i) => {
+      // `paymentMethod` off means the customer's copy should not name methods;
+      // the amounts still have to add up, so the lines stay and lose the name.
+      push(indentedRow(f.paymentMethod ? pay.label : `Payment ${i + 1}`, money(pay.amount)), 'l');
+    });
+    push('  ' + p.div.repeat(Math.max(1, L.width - 2)), 'l');
+    push(indentedRow('Total Paid', money(data.amountPaid ?? pays.reduce((s, x) => s + x.amount, 0))), 'l', { bold: true });
+    if (f.change && data.change !== undefined && data.change > 0) {
+      push(indentedRow('Change', money(data.change)), 'l');
+    }
     divider();
+  } else {
+    const hasPayment = (f.paymentMethod && data.paymentMethod) ||
+      (f.amountPaid && data.amountPaid !== undefined) ||
+      (f.change && data.change !== undefined && data.change > 0);
+    if (hasPayment) {
+      if (f.paymentMethod && data.paymentMethod) push(L.totalsRow('Payment:', data.paymentMethod), 'l');
+      if (f.amountPaid && data.amountPaid !== undefined) push(L.totalsRow('Amount Paid:', money(data.amountPaid)), 'l');
+      if (f.change && data.change !== undefined && data.change > 0) push(L.totalsRow('Change:', money(data.change)), 'l');
+      divider();
+    }
   }
 
   // ── QR ─────────────────────────────────────────────────────────────────────

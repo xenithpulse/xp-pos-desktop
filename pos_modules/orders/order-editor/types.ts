@@ -106,6 +106,8 @@ export interface UseOrderEditorReturn {
   paymentSuccess: boolean;
   handleOpenPayment: () => void;
   handleSubmitPayment: () => Promise<void>;
+  /** Undo one recorded payment on the active order. */
+  handleRemovePayment: (paymentId: string) => Promise<void>;
 
   // ── Lifecycle actions ─────────────────────────────────────────────────
   handleLifecycleAction: (action: string) => Promise<void>;
@@ -137,6 +139,12 @@ export interface UseOrderEditorReturn {
   statusLabel: string;
   statusColor: { bg: string; text: string; border: string };
   lifecycleActions: LifecycleAction[];
+  /**
+   * The payment panel is relevant on this order — it has items and is neither
+   * a draft nor cancelled. Not the same as "money is still owed": a settled
+   * order keeps the panel so a mis-keyed payment can be removed. Use
+   * `activeOrder.amountDue` for whether anything is left to take.
+   */
   canPay: boolean;
   canCancel: boolean;
   tableConflictWarning: string | null;

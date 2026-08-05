@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 import { AdminPermission } from '@/models/schemas/admin.schema';
+import { hasPermission } from '@/types/admin.types';
 import { Lock, LucideFileExclamationPoint } from 'lucide-react';
 
 
@@ -30,10 +31,14 @@ export default function AccessControl({
   const hasValidRole =
     allowedRoles.length === 0 || allowedRoles.includes(user?.role || '');
 
+  // hasPermission() rather than a bare .includes(): it falls back to the role's
+  // defaults. Accounts created through the staff screen have no stored
+  // permissions array at all — only a role — so a raw membership test locks
+  // them out of pages their role plainly grants. Same reasoning as the sidebar.
   const hasValidPermissions =
     requiredPermissions.length === 0 ||
     requiredPermissions.every((perm) =>
-      userPermissions.includes(perm)
+      hasPermission(user?.role, userPermissions, perm)
     );
 
   if (hasValidRole && hasValidPermissions) {

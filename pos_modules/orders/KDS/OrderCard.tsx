@@ -2,33 +2,36 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Order Card - Visual card for grid layout
+//
+// Phase 16 §1.1/§1.2:
+//  - the status ladder lives in ../statusLadder, not here, so the card, the
+//    list view and the details panel cannot drift apart again;
+//  - on the kitchen surface the card body is NOT a button. Tapping a ticket
+//    used to advance it (or open a panel over the board); now only the labelled
+//    action button changes anything, and the ticket shows every line instead of
+//    hiding the tail behind "+n more".
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Clock,
   User,
   MapPin,
   Phone,
-  ChevronRight,
   Flame,
-  AlertCircle,
   CheckCircle2,
   Timer,
   CreditCard,
-  MoreVertical,
-  Play,
-  Check,
-  XCircle,
+  MessageSquare,
   UtensilsCrossed,
   Package,
   Truck,
   Car,
+  FileText,
 } from 'lucide-react';
 import {
   Order,
-  OrderStatus,
   ORDER_STATUS_LABELS,
   ORDER_STATUS_COLORS,
   PAYMENT_STATUS_LABELS,
@@ -36,6 +39,7 @@ import {
   ORDER_MODE_LABELS,
   ORDER_MODE_COLORS,
 } from '@/types/order.types';
+import { getNextStatusAction, type OrderSurface, type StatusActionColor } from '../statusLadder';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -44,9 +48,22 @@ import {
 interface OrderCardProps {
   order: Order;
   onStatusChange: (orderId: string, action: string) => void;
-  onViewDetails: (order: Order) => void;
-  onQuickAction?: (orderId: string, action: string) => void;
+  /** Omit to render no Details control at all — better than a button that
+   *  does nothing (the kitchen screen used to pass a no-op). */
+  onViewDetails?: (order: Order) => void;
+  /** 'kds' = kitchen board: inert card body, ladder stops at Served / Out. */
+  surface?: OrderSurface;
 }
+
+// Static class map — Tailwind JIT cannot see interpolated class names.
+const ACTION_STYLES: Record<StatusActionColor, string> = {
+  blue: 'bg-blue-500 hover:bg-blue-400',
+  amber: 'bg-amber-500 hover:bg-amber-400',
+  green: 'bg-green-600 hover:bg-green-500',
+  cyan: 'bg-cyan-500 hover:bg-cyan-400',
+  purple: 'bg-purple-500 hover:bg-purple-400',
+  emerald: 'bg-emerald-600 hover:bg-emerald-500',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Format time elapsed
@@ -57,7 +74,7 @@ function formatElapsedTime(createdAt: string): string {
   const created = new Date(createdAt);
   const diffMs = now.getTime() - created.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  
+
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m`;
   const hours = Math.floor(diffMins / 60);
@@ -81,26 +98,6 @@ function getModeIcon(mode: string, size = 14) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: Get next action for status
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getNextAction(status: OrderStatus, mode: string): { action: string; label: string; icon: React.ReactNode } | null {
-  const actions: Record<OrderStatus, { action: string; label: string; icon: React.ReactNode } | null> = {
-    draft: { action: 'confirm', label: 'Confirm', icon: <Check size={14} /> },
-    confirmed: { action: 'start_preparing', label: 'Start Prep', icon: <Play size={14} /> },
-    preparing: { action: 'mark_ready', label: 'Ready', icon: <CheckCircle2 size={14} /> },
-    ready: mode === 'delivery' 
-      ? { action: 'out_for_delivery', label: 'Out for Delivery', icon: <Truck size={14} /> }
-      : { action: 'complete', label: 'Complete', icon: <CheckCircle2 size={14} /> },
-    served: { action: 'complete', label: 'Complete', icon: <CheckCircle2 size={14} /> },
-    out_for_delivery: { action: 'complete', label: 'Delivered', icon: <CheckCircle2 size={14} /> },
-    completed: null,
-    cancelled: null,
-  };
-  return actions[status];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -108,15 +105,16 @@ export default function OrderCard({
   order,
   onStatusChange,
   onViewDetails,
-  onQuickAction,
+  surface = 'hub',
 }: OrderCardProps) {
-  const [showActions, setShowActions] = useState(false);
+  const isKds = surface === 'kds';
 
   const statusColor = ORDER_STATUS_COLORS[order.status];
   const paymentColor = PAYMENT_STATUS_COLORS[order.paymentStatus];
   const modeColor = ORDER_MODE_COLORS[order.mode];
   const elapsedTime = formatElapsedTime(order.createdAt);
-  const nextAction = getNextAction(order.status, order.mode);
+  const nextAction = getNextStatusAction(order.status, order.mode, surface);
+  const ActionIcon = nextAction?.icon;
 
   // Time urgency indicator
   const elapsedMinutes = useMemo(() => {
@@ -128,9 +126,20 @@ export default function OrderCard({
   const isOverdue = elapsedMinutes > 30 && !['completed', 'cancelled'].includes(order.status);
 
   // Get display name (table number or customer name)
-  const displayName = order.table?.tableNumber 
+  const displayName = order.table?.tableNumber
     ? `Table ${order.table.tableNumber}`
     : order.customer?.name || order.orderNumber;
+
+  // On the kitchen board a ticket shows every line — a cook cannot make
+  // "+3 more items". In the hub the card stays a summary; the panel has the rest.
+  const visibleItems = isKds ? order.items : order.items.slice(0, 3);
+  const hiddenItemCount = order.items.length - visibleItems.length;
+
+  // The card body is only a control in the hub, where it opens the details
+  // panel. On the kitchen board nothing happens unless a labelled button is
+  // pressed (rule 0.4 — a tap must not silently change a customer's order).
+  const bodyIsButton = !isKds && !!onViewDetails;
+  const hasActionBar = !!nextAction || (isKds && !!onViewDetails);
 
   return (
     <motion.div
@@ -138,19 +147,23 @@ export default function OrderCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ scale: 1.02 }}
       className={`
         relative bg-gray-800/50 backdrop-blur-sm rounded-xl
-        border transition-all duration-200 cursor-pointer
-        ${isOverdue 
-          ? 'border-red-500/50 shadow-lg shadow-red-500/10' 
-          : isUrgent 
+        border transition-colors duration-200
+        ${bodyIsButton ? 'cursor-pointer' : 'cursor-default'}
+        ${isOverdue
+          ? 'border-red-500/50 shadow-lg shadow-red-500/10'
+          : isUrgent
             ? 'border-amber-500/50 shadow-lg shadow-amber-500/10'
-            : 'border-white/10 hover:border-white/20'
+            // Hover feedback only where the body actually does something.
+            // A card that lifts under the cursor but ignores the tap is a lie.
+            : bodyIsButton ? 'border-white/10 hover:border-white/25' : 'border-white/10'
         }
         ${order.isPriority ? 'ring-2 ring-red-500/30' : ''}
       `}
-      onClick={() => onViewDetails(order)}
+      onClick={bodyIsButton ? () => onViewDetails?.(order) : undefined}
+      role={bodyIsButton ? 'button' : undefined}
+      tabIndex={bodyIsButton ? 0 : undefined}
     >
       {/* Priority Indicator */}
       {order.isPriority && (
@@ -188,9 +201,9 @@ export default function OrderCard({
           {/* Time Elapsed */}
           <div className={`
             flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-            ${isOverdue 
-              ? 'bg-red-500/20 text-red-400' 
-              : isUrgent 
+            ${isOverdue
+              ? 'bg-red-500/20 text-red-400'
+              : isUrgent
                 ? 'bg-amber-500/20 text-amber-400'
                 : 'bg-white/5 text-gray-400'
             }
@@ -204,29 +217,55 @@ export default function OrderCard({
       {/* Items Summary */}
       <div className="px-4 py-3">
         <div className="space-y-1">
-          {order.items.slice(0, 3).map((item, idx) => (
-            <div key={item._id || idx} className="flex items-center justify-between text-sm">
-              <span className="text-gray-300 truncate flex-1">
-                <span className="text-gray-500 mr-1">{item.quantity}x</span>
-                {item.name}
-              </span>
-              <span className={`
-                w-2 h-2 rounded-full ml-2
-                ${item.status === 'ready' || item.status === 'served' 
-                  ? 'bg-green-500' 
-                  : item.status === 'preparing' 
-                    ? 'bg-amber-500' 
-                    : 'bg-gray-500'
-                }
-              `} />
+          {visibleItems.map((item, idx) => (
+            <div key={item._id || idx}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-300 truncate flex-1">
+                  <span className="text-gray-500 mr-1">{item.quantity}x</span>
+                  {item.name}
+                </span>
+                <span className={`
+                  w-2 h-2 rounded-full ml-2 shrink-0
+                  ${item.status === 'ready' || item.status === 'served'
+                    ? 'bg-green-500'
+                    : item.status === 'preparing'
+                      ? 'bg-amber-500'
+                      : 'bg-gray-500'
+                  }
+                `} />
+              </div>
+
+              {/* Modifiers and instructions are the whole point of a kitchen
+                  ticket — they never get truncated away there. */}
+              {isKds && item.modifiers && item.modifiers.length > 0 && (
+                <div className="pl-5 text-xs text-gray-500">
+                  {item.modifiers.map((m) => m.name).join(', ')}
+                </div>
+              )}
+              {isKds && item.specialInstructions && (
+                <div className="pl-5 flex items-start gap-1 text-xs text-amber-400">
+                  <MessageSquare size={11} className="mt-0.5 shrink-0" />
+                  {item.specialInstructions}
+                </div>
+              )}
             </div>
           ))}
-          {order.items.length > 3 && (
+          {hiddenItemCount > 0 && (
             <div className="text-xs text-gray-500">
-              +{order.items.length - 3} more items
+              +{hiddenItemCount} more items
             </div>
           )}
         </div>
+
+        {/* Kitchen notes — order-level, and equally un-truncatable. */}
+        {isKds && order.kitchenNotes && (
+          <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-400 mb-0.5">
+              Kitchen Note
+            </div>
+            <div className="text-xs text-gray-300">{order.kitchenNotes}</div>
+          </div>
+        )}
 
         {/* Customer Info (for delivery) */}
         {order.mode === 'delivery' && order.customer && (
@@ -248,7 +287,10 @@ export default function OrderCard({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 bg-black/20 rounded-b-xl flex items-center justify-between">
+      <div className={`
+        px-4 py-2 bg-black/20 flex items-center justify-between gap-2
+        ${hasActionBar ? '' : 'rounded-b-xl'}
+      `}>
         {/* Status Badge */}
         <span className={`
           inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium
@@ -274,28 +316,43 @@ export default function OrderCard({
         </span>
       </div>
 
-      {/* Quick Action Button */}
-      {nextAction && (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onStatusChange(order._id, nextAction.action);
-          }}
-          className={`
-            absolute -bottom-3 left-1/2 -translate-x-1/2
-            flex items-center gap-1.5 px-3 py-1.5 rounded-full
-            bg-gradient-to-r from-cyan-500 to-blue-500
-            text-white text-xs font-medium
-            shadow-lg shadow-cyan-500/30
-            hover:from-cyan-400 hover:to-blue-400
-            transition-all duration-200
-          `}
-        >
-          {nextAction.icon}
-          {nextAction.label}
-        </motion.button>
+      {/* Action bar. Sits inside the card rather than floating over the gap
+          below it — a half-overlapping pill is a small target and it covered
+          the next ticket on a dense board. */}
+      {hasActionBar && (
+        <div className="flex items-stretch gap-2 px-3 py-2.5 border-t border-white/5 rounded-b-xl">
+          {isKds && onViewDetails && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails(order);
+              }}
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-white/5 text-gray-300 text-sm font-medium hover:bg-white/10 transition-colors"
+            >
+              <FileText size={15} />
+              Details
+            </button>
+          )}
+
+          {nextAction && ActionIcon && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusChange(order._id, nextAction.action);
+              }}
+              className={`
+                flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg
+                text-white text-sm font-semibold transition-colors
+                ${ACTION_STYLES[nextAction.color]}
+              `}
+            >
+              <ActionIcon size={16} />
+              {nextAction.label}
+            </button>
+          )}
+        </div>
       )}
     </motion.div>
   );

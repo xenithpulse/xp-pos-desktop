@@ -193,11 +193,17 @@ function KitchenScreen() {
       </header>
 
       <main className="flex-1 overflow-hidden">
+        {/* surface="kds": the card body is inert here and the ladder stops at
+            Served / Out — the kitchen hands food over, the till closes and
+            settles the bill. See pos_modules/orders/statusLadder.ts.
+            No onViewDetails: there is no panel on this screen, and a sliding
+            panel over a ticket board is obstruction. The KDS card shows every
+            line, modifier and note instead. */}
         <OrderManagerGrid
           orders={filteredOrders}
           onStatusChange={handleStatusChange}
-          onViewDetails={() => {}}
           isLoading={isLoadingOrders}
+          surface="kds"
         />
       </main>
     </div>

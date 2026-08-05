@@ -6,9 +6,22 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChefHat, Star, Search, LayoutGrid, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChefHat, Star, Search, LayoutGrid, ChevronLeft, ChevronRight, X, Lock } from 'lucide-react';
 import { ICategory, IMenuItem } from '@/types/menu.types';
 import CatalogItemCard from './CatalogItemCard';
+
+/**
+ * Why the menu is not usable yet, and the one control that fixes it.
+ * Phase 16 §2.1 — an order needs somewhere to go before it can have items.
+ */
+export interface CatalogLock {
+  /** What to do, in a few words. Not what is wrong. */
+  title: string;
+  /** The sentence under it, ending in what happens once it is done. */
+  body: string;
+  actionLabel: string;
+  onAction: () => void;
+}
 
 interface CatalogPanelProps {
   categories: ICategory[];
@@ -20,6 +33,8 @@ interface CatalogPanelProps {
   isLoadingCategories: boolean;
   isLoadingItems: boolean;
   onQuickAdd: (item: IMenuItem) => void;
+  /** Set to grey out the catalogue and explain what is missing. Null = open. */
+  lock?: CatalogLock | null;
 }
 
 const GRID_STORAGE_KEY = 'xp_pos:user_settings:catalog_grid_cols';
@@ -35,6 +50,7 @@ export default function CatalogPanel({
   isLoadingCategories,
   isLoadingItems,
   onQuickAdd,
+  lock = null,
 }: CatalogPanelProps) {
 
   const GRID_OPTIONS = [2, 3, 4, 5, 6] as const;
@@ -105,7 +121,38 @@ export default function CatalogPanel({
   const isSearching = !!searchQuery;
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* ── Locked banner ───────────────────────────────────────────────
+          Disabled, not hidden. A greyed catalogue with a line across it
+          teaches the sequence; a missing catalogue just looks broken.
+          The control that fixes it lives inside the message. */}
+      {lock && (
+        <div className="shrink-0 px-3 py-3 md:px-4 border-b border-amber-500/30 bg-amber-500/10">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-2.5 flex-1 min-w-0">
+              <Lock size={18} className="text-amber-400 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-200">{lock.title}</p>
+                <p className="text-xs text-amber-200/70 mt-0.5">{lock.body}</p>
+              </div>
+            </div>
+            <button
+              onClick={lock.onAction}
+              className="shrink-0 px-4 py-2.5 rounded-lg bg-amber-500 text-gray-950 text-sm font-semibold hover:bg-amber-400 transition-colors"
+            >
+              {lock.actionLabel}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden ${
+          lock ? 'opacity-40 pointer-events-none select-none' : ''
+        }`}
+        aria-hidden={lock ? true : undefined}
+        inert={!!lock}
+      >
       {/* ── Search Bar + Grid Toggle ───────────────────────────────────── */}
       <div className="px-3 py-2 md:px-4 md:py-3 border-b border-gray-800">
         <div className="flex items-center gap-2">
@@ -271,6 +318,7 @@ export default function CatalogPanel({
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

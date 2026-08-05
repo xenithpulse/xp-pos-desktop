@@ -578,8 +578,19 @@ export class ThermalPrintAdapter {
     }
 
     // Format payment method string — prefer the custom method label when set.
+    // This single joined string is what a one-method order prints; it stays
+    // exactly as it was. Split orders print `payments` below instead.
     const paymentMethod = data.payments?.length > 0
       ? data.payments.map(p => (p as { methodLabel?: string }).methodLabel || p.method).join(', ')
+      : undefined;
+
+    // Itemised payments, so "20 cash, rest on card" prints as two lines with
+    // the tenant's own method names rather than one blurred total.
+    const payments = data.payments?.length > 0
+      ? data.payments.map(p => ({
+          label: (p as { methodLabel?: string }).methodLabel || String(p.method),
+          amount: p.amount,
+        }))
       : undefined;
 
     // Resolve the render contract + QR value. For 'order_number' QR content the
@@ -626,6 +637,7 @@ export class ThermalPrintAdapter {
       
       // Payment
       paymentMethod,
+      payments,
       amountPaid: data.amountPaid,
       change: data.amountPaid > data.grandTotal ? data.amountPaid - data.grandTotal : 0,
       

@@ -24,10 +24,6 @@ import {
   RotateCcw,
   FileText,
   Printer,
-  CheckCircle2,
-  ChefHat,
-  UtensilsCrossed,
-  CreditCard,
   Package,
   Edit,
   MoreHorizontal,
@@ -47,8 +43,10 @@ import {
   PAYMENT_STATUS_COLORS,
   ORDER_MODE_LABELS,
   ORDER_MODE_COLORS,
+  PAYMENT_METHOD_LABELS,
   PaymentStatus,
 } from '@/types/order.types';
+import { getNextStatusAction, type StatusActionColor } from '../statusLadder';
 import { SmartCache } from '@/lib/cache';
 import { DaySummaryPanel } from '../printing-facility';
 
@@ -99,6 +97,9 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
   const [isDeleting, setIsDeleting] = useState(false);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const realtimeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /** Whether the empty list is empty because of the user's own filters. */
+  const isFiltered = debouncedSearch.trim() !== '' || paymentFilter !== 'all';
 
   // Debounce search
   useEffect(() => {
@@ -290,26 +291,27 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
    */
   const handleQuickAction = useCallback(
     async (orderId: string, action: string): Promise<void> => {
-      const actionMap: Record<string, { action: string; body?: Record<string, unknown> }> = {
-        'start_preparing': { action: 'start_preparing' },
-        'mark_ready': { action: 'mark_ready' },
-        'serve': { action: 'serve' },
-        'pay': { action: 'pay', body: { paymentMethod: 'cash', amount: 0 } },
-        'complete': { action: 'complete' },
-        'complete_and_pay': { action: 'complete_and_pay', body: { paymentMethod: 'cash' } },
-      };
+      // Every action the shared ladder can produce, and nothing else. The
+      // previous map carried 'serve' and 'pay', which the API has never
+      // accepted — those two buttons only ever produced a 400.
+      const ALLOWED = new Set([
+        'confirm',
+        'start_preparing',
+        'mark_ready',
+        'mark_served',
+        'out_for_delivery',
+        'complete',
+      ]);
 
-      const config = actionMap[action];
-      if (!config) {
+      if (!ALLOWED.has(action)) {
         console.warn('Unknown quick action:', action);
         return;
       }
-
       try {
         const res = await fetch(`/api/orders/${orderId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: config.action, ...config.body }),
+          body: JSON.stringify({ action }),
         });
 
         if (!res.ok) {
@@ -534,14 +536,42 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : orders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <AlertCircle size={48} className="mb-4 opacity-50" />
-            <p className="text-lg">No orders found</p>
-            <p className="text-sm text-gray-600 mt-1">
-              {subView === 'ongoing'
-                ? 'No active orders at the moment.'
-                : 'No past orders match your filters.'}
-            </p>
+          /* An empty state says what to do next. "No orders found" tells the
+             reader something they can already see and leaves them stuck. */
+          <div className="flex flex-col items-center justify-center h-64 text-center px-6">
+            <AlertCircle size={44} className="mb-4 text-gray-600" />
+            {isFiltered ? (
+              <>
+                <p className="text-base text-gray-300">Nothing matches this search.</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Clear the search and filters to see every order again.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setPaymentFilter('all');
+                  }}
+                  className="mt-4 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors"
+                >
+                  Clear Search &amp; Filters
+                </button>
+              </>
+            ) : subView === 'ongoing' ? (
+              <>
+                <p className="text-base text-gray-300">No orders in progress.</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Start one by picking a table on the floor plan, or open Takeaway
+                  or Delivery for a counter order.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base text-gray-300">Nothing here yet today.</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Orders move here once they are closed or cancelled.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -673,6 +703,134 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Row actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Static class map — Tailwind JIT cannot see interpolated class names.
+const ROW_ACTION_STYLES: Record<StatusActionColor, string> = {
+  blue: 'bg-blue-600 hover:bg-blue-500',
+  amber: 'bg-amber-600 hover:bg-amber-500',
+  green: 'bg-green-600 hover:bg-green-500',
+  cyan: 'bg-cyan-600 hover:bg-cyan-500',
+  purple: 'bg-purple-600 hover:bg-purple-500',
+  emerald: 'bg-emerald-600 hover:bg-emerald-500',
+};
+
+/**
+ * The always-visible "Actions" control for a row (rule 0.2). The alternative —
+ * a cluster of unlabelled icons that materialises under a cursor — is invisible
+ * on a touchscreen and undiscoverable everywhere else.
+ *
+ * Destructive entries are named with their object (rule 0.4) and Delete Order
+ * confirms in place: it is irreversible and it used to fire on one tap.
+ */
+function RowActionsMenu({
+  order,
+  onRestart,
+  onDelete,
+}: {
+  order: Order;
+  onRestart?: () => void;
+  onDelete?: (orderId: string, hard?: boolean) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setConfirmDelete(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [open]);
+
+  const itemCls =
+    'w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition-colors text-left';
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+      >
+        More
+        <MoreHorizontal size={11} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20 min-w-[168px] py-1">
+          <button
+            onClick={() => {
+              window.print();
+              setOpen(false);
+            }}
+            className={itemCls}
+          >
+            <Printer size={12} />
+            Print Receipt
+          </button>
+
+          {onRestart && (
+            <button
+              onClick={() => {
+                onRestart();
+                setOpen(false);
+              }}
+              className={itemCls}
+            >
+              <RotateCcw size={12} />
+              Restart Order
+            </button>
+          )}
+
+          {onDelete && !confirmDelete && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className={`${itemCls} text-red-400 hover:text-red-300`}
+            >
+              <Trash2 size={12} />
+              Delete Order
+            </button>
+          )}
+
+          {onDelete && confirmDelete && (
+            <div className="px-3 py-2 border-t border-gray-700">
+              <p className="text-[11px] text-red-300 leading-snug">
+                Delete order #{order.orderNumber}? This cannot be undone.
+              </p>
+              <div className="mt-2 flex gap-1.5">
+                <button
+                  onClick={() => {
+                    void onDelete(order._id, false);
+                    setConfirmDelete(false);
+                    setOpen(false);
+                  }}
+                  className="flex-1 px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-semibold"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 text-[10px] font-semibold"
+                >
+                  Keep
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Order Row — Enhanced with more info and CLA buttons
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -688,7 +846,6 @@ interface OrderRowProps {
 }
 
 function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSelected, onToggleSelect, onDelete }: OrderRowProps) {
-  const [showActions, setShowActions] = useState(false);
   const [isPerformingAction, setIsPerformingAction] = useState(false);
   
   const statusColor = ORDER_STATUS_COLORS[order.status];
@@ -733,30 +890,12 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
     return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }, [order]);
 
-  // Determine next available actions based on status
-  const availableActions = useMemo(() => {
-    const actions: { label: string; action: string; icon: React.ReactNode; color: string }[] = [];
-    
-    switch (order.status) {
-      case 'confirmed':
-        actions.push({ label: 'Start Prep', action: 'start_preparing', icon: <ChefHat size={12} />, color: 'bg-yellow-600 hover:bg-yellow-500' });
-        break;
-      case 'preparing':
-        actions.push({ label: 'Mark Ready', action: 'mark_ready', icon: <CheckCircle2 size={12} />, color: 'bg-orange-600 hover:bg-orange-500' });
-        break;
-      case 'ready':
-        actions.push({ label: 'Serve', action: 'serve', icon: <UtensilsCrossed size={12} />, color: 'bg-blue-600 hover:bg-blue-500' });
-        break;
-      case 'served':
-        if (order.paymentStatus !== 'paid') {
-          actions.push({ label: 'Pay', action: 'pay', icon: <CreditCard size={12} />, color: 'bg-green-600 hover:bg-green-500' });
-        }
-        actions.push({ label: 'Complete', action: 'complete', icon: <CheckCircle2 size={12} />, color: 'bg-emerald-600 hover:bg-emerald-500' });
-        break;
-    }
-    
-    return actions;
-  }, [order.status, order.paymentStatus]);
+  // The one thing this order needs next, from the shared ladder. This column
+  // used to carry its own table of transitions and two of its entries — 'serve'
+  // and 'pay' — were action names the API has never accepted, so those buttons
+  // did nothing but raise a 400. Taking payment is not a one-tap row action at
+  // all: it needs a method and an amount, so it happens in the order editor.
+  const nextAction = getNextStatusAction(order.status, order.mode, 'hub');
 
   const handleQuickAction = async (action: string) => {
     if (!onQuickAction || isPerformingAction) return;
@@ -765,7 +904,6 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
       await onQuickAction(order._id, action);
     } finally {
       setIsPerformingAction(false);
-      setShowActions(false);
     }
   };
 
@@ -792,13 +930,13 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
           <div className="flex items-center gap-1.5">
             <span className="font-semibold text-white text-sm">#{order.orderNumber}</span>
             {order.isPriority && (
-              <span className="px-1 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold rounded">
-                VIP
+              <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold rounded">
+                Rush
               </span>
             )}
             {isHistorical && (
-              <span className="px-1 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-bold rounded">
-                HIST
+              <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] font-bold rounded">
+                Past
               </span>
             )}
           </div>
@@ -817,7 +955,7 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
             {order.table.guestCount && (
               <div className="flex items-center gap-1 text-[10px] text-gray-500">
                 <Users size={10} />
-                {order.table.guestCount} covers
+                {order.table.guestCount} guests
               </div>
             )}
           </div>
@@ -851,12 +989,18 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
           <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-medium ${paymentColor.bg} ${paymentColor.text}`}>
             {PAYMENT_STATUS_LABELS[order.paymentStatus]}
           </span>
-          <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-medium ${paymentColor.bg} ${paymentColor.text}`}>
-            {order.transactions.length > 0 ? order.transactions[0].method.toString() : "—"}
+          {/* Every method used, named. This printed the raw category code of
+              the FIRST payment only, so a split bill showed half its story. */}
+          <span className="text-[10px] text-gray-400 truncate max-w-[110px]">
+            {order.transactions.length > 0
+              ? order.transactions
+                  .map((tx) => tx.methodLabel || PAYMENT_METHOD_LABELS[tx.method])
+                  .join(' + ')
+              : 'Not paid yet'}
           </span>
           {order.amountDue > 0 && (
             <span className="text-[10px] text-orange-400 font-medium">
-              Due: {order.amountDue}
+              Left to pay: {order.amountDue}
             </span>
           )}
         </div>
@@ -890,109 +1034,47 @@ function OrderRow({ order, onOpen, onRestart, onQuickAction, isHistorical, isSel
         </div>
       </td>
 
-      {/* Actions — expanded with more CLA buttons */}
+      {/* Actions.
+          Everything here is permanently visible. It used to live behind
+          `opacity-0 group-hover:opacity-100`, which on a tablet — what these
+          tills are — meant it did not exist at all, and `title=` tooltips do
+          not exist there either (rules 0.1 / 0.2). */}
       <td className="px-2 py-2.5">
-        <div className="flex items-center justify-end gap-1 relative">
-          {/* Quick action buttons (visible on hover) */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            {availableActions.slice(0, 2).map((act) => (
-              <button
-                key={act.action}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleQuickAction(act.action);
-                }}
-                disabled={isPerformingAction}
-                className={`p-1 text-white rounded text-[10px] font-medium flex items-center gap-0.5 transition-all ${act.color} ${isPerformingAction ? 'opacity-50' : ''}`}
-                title={act.label}
-              >
-                {act.icon}
-              </button>
-            ))}
-            
-            {/* Edit button */}
+        <div
+          className="flex items-center justify-end gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {nextAction && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen();
-              }}
-              className="p-1 bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors"
-              title="Edit order"
+              onClick={() => handleQuickAction(nextAction.action)}
+              disabled={isPerformingAction}
+              className={`
+                inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold
+                text-white transition-colors whitespace-nowrap
+                ${ROW_ACTION_STYLES[nextAction.color]}
+                ${isPerformingAction ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
             >
-              <Edit size={12} />
-            </button>
-            
-            {/* Print */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.print();
-              }}
-              className="p-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
-              title="Print"
-            >
-              <Printer size={12} />
-            </button>
-
-            {/* Delete */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete?.(order._id, false);
-              }}
-              className="p-1 bg-red-600/80 hover:bg-red-500 text-white rounded transition-colors"
-              title="Delete order"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-
-          {/* Restart button for cancelled orders */}
-          {onRestart && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRestart();
-              }}
-              className="p-1 bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
-              title="Restart order"
-            >
-              <RotateCcw size={12} />
+              <nextAction.icon size={11} />
+              {nextAction.label}
             </button>
           )}
-          
-          {/* More actions menu */}
-          {availableActions.length > 2 && (
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowActions(!showActions);
-                }}
-                className="p-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors opacity-0 group-hover:opacity-100"
-              >
-                <MoreHorizontal size={12} />
-              </button>
-              {showActions && (
-                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 min-w-[120px] py-1">
-                  {availableActions.slice(2).map((act) => (
-                    <button
-                      key={act.action}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleQuickAction(act.action);
-                      }}
-                      disabled={isPerformingAction}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                    >
-                      {act.icon}
-                      {act.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+
+          {/* The row's primary action, stated rather than implied by the fact
+              that clicking somewhere on the row happens to do it. */}
+          <button
+            onClick={onOpen}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+          >
+            <Edit size={11} />
+            Open
+          </button>
+
+          <RowActionsMenu
+            order={order}
+            onRestart={onRestart}
+            onDelete={onDelete}
+          />
         </div>
       </td>
     </motion.tr>
@@ -1022,26 +1104,8 @@ function MobileOrderCard({ order, onOpen, onRestart, onQuickAction, isSelected, 
 
   const totalQty = useMemo(() => order.items.reduce((sum, item) => sum + item.quantity, 0), [order.items]);
 
-  const availableActions = useMemo(() => {
-    const actions: { label: string; action: string; icon: React.ReactNode; color: string }[] = [];
-    switch (order.status) {
-      case 'confirmed':
-        actions.push({ label: 'Start Prep', action: 'start_preparing', icon: <ChefHat size={12} />, color: 'bg-yellow-600 hover:bg-yellow-500' });
-        break;
-      case 'preparing':
-        actions.push({ label: 'Mark Ready', action: 'mark_ready', icon: <CheckCircle2 size={12} />, color: 'bg-orange-600 hover:bg-orange-500' });
-        break;
-      case 'ready':
-        actions.push({ label: 'Serve', action: 'serve', icon: <UtensilsCrossed size={12} />, color: 'bg-blue-600 hover:bg-blue-500' });
-        break;
-      case 'served':
-        if (order.paymentStatus !== 'paid')
-          actions.push({ label: 'Pay', action: 'pay', icon: <CreditCard size={12} />, color: 'bg-green-600 hover:bg-green-500' });
-        actions.push({ label: 'Complete', action: 'complete', icon: <CheckCircle2 size={12} />, color: 'bg-emerald-600 hover:bg-emerald-500' });
-        break;
-    }
-    return actions;
-  }, [order.status, order.paymentStatus]);
+  // Same shared ladder as the desktop row — see the note on OrderRow.
+  const nextAction = getNextStatusAction(order.status, order.mode, 'hub');
 
   const handleQuickAction = async (action: string) => {
     if (!onQuickAction || isPerformingAction) return;
@@ -1074,7 +1138,7 @@ function MobileOrderCard({ order, onOpen, onRestart, onQuickAction, isSelected, 
                 {ORDER_STATUS_LABELS[order.status]}
               </span>
               {order.isPriority && (
-                <span className="px-1 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold rounded">VIP</span>
+                <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-bold rounded">Rush</span>
               )}
             </div>
           </div>
@@ -1101,47 +1165,38 @@ function MobileOrderCard({ order, onOpen, onRestart, onQuickAction, isSelected, 
           {PAYMENT_STATUS_LABELS[order.paymentStatus]}
         </span>
         {order.amountDue > 0 && (
-          <span className="text-[10px] text-orange-400 font-medium">Due: {order.amountDue}</span>
+          <span className="text-[10px] text-orange-400 font-medium">Left to pay: {order.amountDue}</span>
         )}
         <span className="ml-auto text-[10px] text-gray-500">{timeAgo}</span>
       </div>
 
       {/* Actions row */}
       <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-        {availableActions.map((act) => (
+        {nextAction && (
           <button
-            key={act.action}
-            onClick={() => handleQuickAction(act.action)}
+            onClick={() => handleQuickAction(nextAction.action)}
             disabled={isPerformingAction}
-            className={`flex items-center gap-1 px-2 py-1 text-white rounded text-[10px] font-medium transition-all ${act.color} ${isPerformingAction ? 'opacity-50' : ''}`}
+            className={`
+              flex items-center gap-1 px-2.5 py-1.5 text-white rounded text-[10px] font-semibold transition-colors
+              ${ROW_ACTION_STYLES[nextAction.color]}
+              ${isPerformingAction ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
           >
-            {act.icon}
-            {act.label}
-          </button>
-        ))}
-
-        <button
-          onClick={onOpen}
-          className="flex items-center gap-1 px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-medium"
-        >
-          <Edit size={11} /> Edit
-        </button>
-
-        {onRestart && (
-          <button
-            onClick={onRestart}
-            className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-[10px] font-medium"
-          >
-            <RotateCcw size={11} /> Restart
+            <nextAction.icon size={11} />
+            {nextAction.label}
           </button>
         )}
 
         <button
-          onClick={() => onDelete?.(order._id, false)}
-          className="flex items-center gap-1 px-2 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] font-medium ml-auto"
+          onClick={onOpen}
+          className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] font-semibold"
         >
-          <Trash2 size={11} /> Delete
+          <Edit size={11} /> Open
         </button>
+
+        <div className="ml-auto">
+          <RowActionsMenu order={order} onRestart={onRestart} onDelete={onDelete} />
+        </div>
       </div>
     </motion.div>
   );

@@ -4,7 +4,7 @@
 //
 // For the restaurant that puts one person on takeaway for a whole shift: they
 // sign in, land here, and see their queue and nothing else. No floor plan, no
-// delivery, no tab strip to get lost in. The same component backs /hub and
+// delivery, no tab strip to get lost in. The same component backs /dine-in and
 // /delivery - see features/pos/ManagementHub.tsx for why it is pinned rather
 // than copied.
 

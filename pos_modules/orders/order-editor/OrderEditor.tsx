@@ -13,7 +13,7 @@ import DeliveryDetailsBar from './DeliveryDetailsBar';
 import OrderItemsList from './OrderItemsList';
 import OrderFooter from './OrderFooter';
 import PaymentDrawer from './PaymentDrawer';
-import CatalogPanel from './CatalogPanel';
+import CatalogPanel, { type CatalogLock } from './CatalogPanel';
 import AdjustmentManager from './AdjustmentManager';
 import type { OrderEditorHandle, OrderEditorProps } from './types';
 import { ITable, ITableSection } from '@/types/table.types';
@@ -36,6 +36,12 @@ interface OrderEditorFullProps extends OrderEditorProps {
   onTakeawayNew?: () => void;
   /** Called when a customer is selected/created and a new takeaway/delivery order should be initiated */
   onTakeawayInitiate?: (customerId: string) => void;
+  /**
+   * Dine-in only. Called from the locked-catalogue message when the order has
+   * no table yet — the host should navigate to the floor plan. Without it the
+   * message still explains the problem, it just cannot offer the shortcut.
+   */
+  onChooseTable?: () => void;
 }
 
 const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
@@ -48,6 +54,7 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
     onTakeawaySwitch,
     onTakeawayNew,
     onTakeawayInitiate,
+    onChooseTable,
     ...props
   }, ref) {
     const state = useOrderEditorState(props);
@@ -59,6 +66,8 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
     const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
     // Mobile: toggle between cart view and catalog view
     const [mobileView, setMobileView] = useState<'cart' | 'catalog'>('catalog');
+    // Bumped to ask the customer panel to focus its search box.
+    const [focusCustomerSignal, setFocusCustomerSignal] = useState(0);
 
     // When a customer is selected (existing) → initiate a takeaway order
     const handleCustomerSelect = useCallback(
@@ -115,6 +124,48 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
 
     // Cart item count for the mobile toggle badge
     const totalCartItems = state.cart.items.length + (state.activeOrder?.items?.length || 0);
+
+    // ── Catalogue guard (Phase 16 §2.1) ─────────────────────────────────
+    // An order needs somewhere to go before it can have items. Without this
+    // it is possible to build a whole cart that belongs to nobody and only
+    // discover it at the end, with a customer waiting.
+    const hasTable = !!(state.focusedContext.tableId || state.activeOrder?.table?.tableId);
+    const hasCustomer = !!(
+      state.activeOrder?.customerId ||
+      takeawayCustomer ||
+      state.activeOrder?.customer?.name ||
+      state.activeOrder?.customer?.phone
+    );
+
+    let catalogLock: CatalogLock | null = null;
+    if (mode === 'dine-in' && !hasTable && !state.activeOrder) {
+      catalogLock = {
+        title: 'Choose a table first.',
+        body: 'Pick a table from the floor plan and the menu will open.',
+        actionLabel: 'Choose a Table',
+        onAction: () => onChooseTable?.(),
+      };
+    } else if ((mode === 'takeaway' || mode === 'delivery') && !hasCustomer) {
+      catalogLock = {
+        title: 'Add the customer first.',
+        body:
+          mode === 'delivery'
+            ? 'Search for the customer, or add a new one with their address, and the menu will open.'
+            : 'Search for the customer, or add a new one by name or phone, and the menu will open.',
+        actionLabel: 'Add Customer',
+        onAction: () => {
+          // On a phone the customer panel lives behind the Cart tab, so the
+          // control has to take you there before focusing it.
+          setMobileView('cart');
+          setFocusCustomerSignal((n) => n + 1);
+        },
+      };
+    }
+
+    // A dine-in message that cannot navigate anywhere would be a dead end.
+    if (catalogLock && mode === 'dine-in' && !onChooseTable) {
+      catalogLock = { ...catalogLock, body: 'Open the floor plan and pick a table, and the menu will open.' };
+    }
 
     return (
       <div className="h-full flex flex-col md:flex-row">
@@ -189,6 +240,7 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
                 onCustomerUpdate={handleCustomerUpdate}
                 selectedAddressId={selectedAddressId}
                 onAddressSelect={setSelectedAddressId}
+                focusSignal={focusCustomerSignal}
               />
               {mode === 'delivery' && (
                 <DeliveryDetailsBar
@@ -269,6 +321,7 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
               error={state.paymentError}
               success={state.paymentSuccess}
               onSubmit={state.handleSubmitPayment}
+              onRemovePayment={state.handleRemovePayment}
             />
           )}
         </div>
@@ -292,7 +345,8 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
             onQuickAdd={(item) => {
               state.handleQuickAdd(item);
             }}
-          />    
+            lock={catalogLock}
+          />
         </div>
       </div>
     );

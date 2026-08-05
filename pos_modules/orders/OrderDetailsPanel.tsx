@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
+  AlertTriangle,
   Clock,
   User,
   MapPin,
@@ -46,6 +47,12 @@ import {
   ItemStatus,
 } from '@/types/order.types';
 import { formatDateTime, formatTime, getModeIcon } from './helpers';
+import {
+  getNextStatusAction,
+  getStatusTrail,
+  getTrailPosition,
+  type StatusActionColor,
+} from './statusLadder';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -62,11 +69,12 @@ interface OrderDetailsPanelProps {
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'card', 'online', 'other'];
 
 // Static gradient class map (dynamic class names don't work with Tailwind JIT)
-const ACTION_BUTTON_STYLES: Record<string, string> = {
+const ACTION_BUTTON_STYLES: Record<StatusActionColor, string> = {
   blue: 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500',
   amber: 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500',
   green: 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500',
   cyan: 'bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500',
+  purple: 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500',
   emerald: 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500',
 };
 
@@ -85,6 +93,20 @@ export default function OrderDetailsPanel({
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [showPrintMenu, setShowPrintMenu] = useState(false);
+  // Cancelling is the only irreversible action on this panel and it used to
+  // fire on one tap of an unlabelled X (Phase 16 §1.3).
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  // Never leave a primed "Yes, Cancel Order" waiting on the next order that
+  // opens in this panel. Reset during render rather than in an effect — the
+  // panel must not paint one frame with the previous order's confirmation up.
+  const panelKey = `${order?._id ?? ''}:${isOpen}`;
+  const [lastPanelKey, setLastPanelKey] = useState(panelKey);
+  if (panelKey !== lastPanelKey) {
+    setLastPanelKey(panelKey);
+    setConfirmCancel(false);
+    setShowPrintMenu(false);
+  }
 
   if (!order) return null;
 
@@ -175,7 +197,15 @@ export default function OrderDetailsPanel({
       itemRows += `<tr><td>${item.name}</td><td class="right">${item.quantity}</td><td class="right">${item.unitPrice.toFixed(2)}</td><td class="right">${item.subtotal.toFixed(2)}</td></tr>`;
     }
 
-    const paidVia = o.transactions?.map(t => PAYMENT_METHOD_LABELS[t.method]).join(', ') || '—';
+    // One line per payment, with the tenant's own method name — an order paid
+    // across two methods must not print as though one method paid all of it.
+    const payments = o.transactions ?? [];
+    const paidRows = payments
+      .map(
+        (t) =>
+          `<div class="item-row small"><span>${t.methodLabel || PAYMENT_METHOD_LABELS[t.method]}</span><span>Rs. ${t.amount.toFixed(2)}</span></div>`,
+      )
+      .join('');
 
     printThermalContent(`
       <div class="center bold large">RESTAURANT</div>
@@ -201,9 +231,14 @@ export default function OrderDetailsPanel({
       <div class="divider"></div>
       <div class="item-row bold large"><span>TOTAL:</span><span>Rs. ${o.grandTotal.toFixed(2)}</span></div>
       <div class="divider"></div>
-      <div class="small">Payment: ${paidVia}</div>
-      ${o.amountPaid > 0 ? `<div class="small">Paid: Rs. ${o.amountPaid.toFixed(2)}</div>` : ''}
-      ${o.amountDue > 0 ? `<div class="small bold">Due: Rs. ${o.amountDue.toFixed(2)}</div>` : ''}
+      ${payments.length > 0
+        ? `<div class="small bold">Paid</div>${paidRows}${
+            payments.length > 1
+              ? `<div class="item-row small bold"><span>Total Paid</span><span>Rs. ${o.amountPaid.toFixed(2)}</span></div>`
+              : ''
+          }`
+        : '<div class="small">Payment: —</div>'}
+      ${o.amountDue > 0 ? `<div class="item-row small bold"><span>Left to Pay</span><span>Rs. ${o.amountDue.toFixed(2)}</span></div>` : ''}
       <div class="divider"></div>
       <div class="center small">Thank you for dining with us!</div>
       <div class="center small">Please visit again</div>
@@ -211,16 +246,15 @@ export default function OrderDetailsPanel({
     `);
   };
 
-  const statusActions = [
-    { status: 'draft', action: 'confirm', label: 'Confirm Order', color: 'blue' },
-    { status: 'confirmed', action: 'start_preparing', label: 'Start Preparing', color: 'amber' },
-    { status: 'preparing', action: 'mark_ready', label: 'Mark Ready', color: 'green' },
-    { status: 'ready', action: order.mode === 'dine_in' ? 'mark_served' : 'complete', label: order.mode === 'dine_in' ? 'Mark Served' : 'Complete', color: 'cyan' },
-    { status: 'served', action: 'complete', label: 'Complete Order', color: 'emerald' },
-    { status: 'out_for_delivery', action: 'complete', label: 'Mark Delivered', color: 'emerald' },
-  ];
+  // This panel is a management view, so it gets the full ladder including
+  // Close Order. The kitchen board deliberately does not — see statusLadder.ts.
+  const currentAction = getNextStatusAction(order.status, order.mode, 'hub');
+  const CurrentActionIcon = currentAction?.icon;
 
-  const currentAction = statusActions.find(a => a.status === order.status);
+  const trail = getStatusTrail(order.mode);
+  const trailPosition = getTrailPosition(order.status, trail);
+  const isCancelled = order.status === 'cancelled';
+  const canCancel = !['completed', 'cancelled'].includes(order.status);
 
   return (
     <AnimatePresence>
@@ -277,38 +311,72 @@ export default function OrderDetailsPanel({
               </div>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {/* Status & Mode */}
-              <div className="px-6 py-4 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <span className={`
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                    ${statusColor.bg} ${statusColor.text}
-                  `}>
-                    {order.status === 'preparing' && <Timer size={14} className="animate-pulse" />}
-                    {order.status === 'ready' && <CheckCircle2 size={14} />}
-                    {ORDER_STATUS_LABELS[order.status]}
-                  </span>
+            {/* ── Status strip ────────────────────────────────────────────
+                Where the order is, stated. It sits outside the scroll area so
+                it is always on screen, and it is deliberately separate from the
+                actions block at the bottom: this panel used to make the reader
+                work out the status from which buttons were present. */}
+            <div className="shrink-0 px-6 py-4 border-b border-white/10 bg-white/[0.02]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`
+                  inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                  ${statusColor.bg} ${statusColor.text}
+                `}>
+                  {order.status === 'preparing' && <Timer size={14} className="animate-pulse" />}
+                  {order.status === 'ready' && <CheckCircle2 size={14} />}
+                  {ORDER_STATUS_LABELS[order.status]}
+                </span>
 
-                  <span className={`
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                    ${paymentColor.bg} ${paymentColor.text}
-                  `}>
-                    <CreditCard size={14} />
-                    {PAYMENT_STATUS_LABELS[order.paymentStatus]}
-                  </span>
+                <span className={`
+                  inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                  ${paymentColor.bg} ${paymentColor.text}
+                `}>
+                  <CreditCard size={14} />
+                  {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+                </span>
 
-                  <span className={`
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
-                    ${modeColor.bg} ${modeColor.text}
-                  `}>
-                    {getModeIcon(order.mode, 14)}
-                    {ORDER_MODE_LABELS[order.mode]}
-                  </span>
-                </div>
+                <span className={`
+                  inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                  ${modeColor.bg} ${modeColor.text}
+                `}>
+                  {getModeIcon(order.mode, 14)}
+                  {ORDER_MODE_LABELS[order.mode]}
+                </span>
               </div>
 
+              {/* The rungs this order passes through, with the current one
+                  marked. Labels, not colour alone — rule 0.2 / Part 4. */}
+              {isCancelled ? (
+                <div className="mt-3 flex items-center gap-2 text-sm text-red-400">
+                  <XCircle size={15} />
+                  This order was cancelled.
+                </div>
+              ) : (
+                <ol className="mt-3 flex items-center gap-1">
+                  {trail.map((step, idx) => {
+                    const done = trailPosition >= 0 && idx < trailPosition;
+                    const current = idx === trailPosition;
+                    return (
+                      <li key={step.status} className="flex-1 min-w-0">
+                        <div className={`
+                          h-1 rounded-full mb-1.5
+                          ${done ? 'bg-cyan-500/60' : current ? 'bg-cyan-400' : 'bg-white/10'}
+                        `} />
+                        <div className={`
+                          text-[11px] leading-tight truncate
+                          ${current ? 'text-cyan-300 font-semibold' : done ? 'text-gray-400' : 'text-gray-600'}
+                        `}>
+                          {step.label}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
               {/* Customer/Table Info */}
               {(order.table || order.customer) && (
                 <div className="px-6 py-4 border-b border-white/5">
@@ -658,79 +726,118 @@ export default function OrderDetailsPanel({
               </div>
             </div>
 
-            {/* Footer Actions */}
-            <div className="px-6 py-4 border-t border-white/10 bg-gray-900/50">
-              <div className="flex items-center gap-3">
-                {!['completed', 'cancelled'].includes(order.status) && (
-                  <button
-                    onClick={() => onStatusChange(order._id, 'cancel')}
-                    className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 font-medium hover:bg-red-500/30 transition-colors"
-                  >
-                    <XCircle size={18} />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => onStatusChange(order._id, 'toggle_priority')}
-                  className={`
-                    px-4 py-2 rounded-lg font-medium transition-colors
-                    ${order.isPriority 
-                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                    }
-                  `}
-                >
-                  <Flame size={18} />
-                </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => setShowPrintMenu(!showPrintMenu)}
-                    className="px-4 py-2 rounded-lg bg-white/5 text-gray-400 font-medium hover:bg-white/10 transition-colors flex items-center gap-1"
-                  >
-                    <Printer size={18} />
-                    <ChevronDown size={14} />
-                  </button>
-                  {showPrintMenu && (
-                    <div className="absolute bottom-full left-0 mb-2 w-44 bg-gray-800 border border-white/10 rounded-lg shadow-xl overflow-hidden z-10">
-                      <button
-                        onClick={() => {
-                          handlePrintKOT(order);
-                          setShowPrintMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/10 transition-colors"
-                      >
-                        <Printer size={14} className="text-amber-400" />
-                        Print KOT
-                      </button>
-                      <button
-                        onClick={() => {
-                          handlePrintInvoice(order);
-                          setShowPrintMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/10 transition-colors"
-                      >
-                        <FileText size={14} className="text-green-400" />
-                        Print Invoice
-                      </button>
-                    </div>
-                  )}
+            {/* ── Actions ─────────────────────────────────────────────────
+                What you can do, separate from what the order is. Every control
+                carries a text label — rule 0.1. */}
+            <div className="px-6 py-4 border-t border-white/10 bg-gray-900/50 space-y-3">
+              {/* Confirmation for the one irreversible action on this panel.
+                  Named with its object so "Cancel" cannot be read as
+                  "close this panel" — rule 0.4. */}
+              {confirmCancel ? (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                  <div className="flex items-start gap-2 text-sm text-red-300">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    <span>
+                      Cancel order #{String(order.orderNumber).split('-').pop()}? The
+                      customer&rsquo;s order is voided and the table is released. This
+                      cannot be undone.
+                    </span>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => {
+                        onStatusChange(order._id, 'cancel');
+                        setConfirmCancel(false);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-400 transition-colors"
+                    >
+                      <XCircle size={16} />
+                      Yes, Cancel Order
+                    </button>
+                    <button
+                      onClick={() => setConfirmCancel(false)}
+                      className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 text-gray-300 font-medium hover:bg-white/10 transition-colors"
+                    >
+                      Keep Order
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {canCancel && (
+                    <button
+                      onClick={() => setConfirmCancel(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm font-medium hover:bg-red-500/30 transition-colors"
+                    >
+                      <XCircle size={16} />
+                      Cancel Order
+                    </button>
+                  )}
 
-                {currentAction && (
                   <button
-                    onClick={() => onStatusChange(order._id, currentAction.action)}
+                    onClick={() => onStatusChange(order._id, 'toggle_priority')}
                     className={`
-                      flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                      font-medium transition-colors text-white
-                      ${ACTION_BUTTON_STYLES[currentAction.color] || ACTION_BUTTON_STYLES.blue}
+                      flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                      ${order.isPriority
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      }
                     `}
                   >
-                    <ChevronRight size={18} />
-                    {currentAction.label}
+                    <Flame size={16} />
+                    {order.isPriority ? 'Remove Rush' : 'Mark Rush'}
                   </button>
-                )}
-              </div>
+
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowPrintMenu(!showPrintMenu)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 text-gray-400 text-sm font-medium hover:bg-white/10 transition-colors"
+                    >
+                      <Printer size={16} />
+                      Print
+                      <ChevronDown size={14} />
+                    </button>
+                    {showPrintMenu && (
+                      <div className="absolute bottom-full left-0 mb-2 w-48 bg-gray-800 border border-white/10 rounded-lg shadow-xl overflow-hidden z-10">
+                        <button
+                          onClick={() => {
+                            handlePrintKOT(order);
+                            setShowPrintMenu(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/10 transition-colors"
+                        >
+                          <Printer size={14} className="text-amber-400" />
+                          Kitchen Ticket
+                        </button>
+                        <button
+                          onClick={() => {
+                            handlePrintInvoice(order);
+                            setShowPrintMenu(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/10 transition-colors"
+                        >
+                          <FileText size={14} className="text-green-400" />
+                          Receipt
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {currentAction && CurrentActionIcon && !confirmCancel && (
+                <button
+                  onClick={() => onStatusChange(order._id, currentAction.action)}
+                  className={`
+                    w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                    font-semibold transition-colors text-white
+                    ${ACTION_BUTTON_STYLES[currentAction.color]}
+                  `}
+                >
+                  <CurrentActionIcon size={18} />
+                  {currentAction.label}
+                </button>
+              )}
             </div>
           </motion.div>
         </>

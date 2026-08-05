@@ -44,7 +44,7 @@ interface LicenseNoticeStatus {
 }
 
 /** Screens where a modal must never appear: this is where service happens. */
-const SERVICE_ROUTES = ["/", "/hub", "/daily-sheet"];
+const SERVICE_ROUTES = ["/", "/dine-in", "/hub", "/daily-sheet"];
 
 function isServiceRoute(pathname: string | null): boolean {
   if (!pathname) return true;
@@ -174,7 +174,7 @@ function BlockingDialog({ status }: { status: LicenseNoticeStatus }) {
             Activate a licence
           </Link>
           <Link
-            href="/hub"
+            href="/dine-in"
             className="flex-1 rounded-lg border border-neutral-300 px-5 py-3 text-center font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
           >
             Back to the floor

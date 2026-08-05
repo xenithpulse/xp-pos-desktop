@@ -9,7 +9,7 @@ import { Field, inputCls, selectCls, checkboxCls, SectionHeading, type SectionPr
 export default function HubSection({ settings, update }: SectionProps) {
   return (
     <div className="space-y-6">
-      <SectionHeading title="Hub Configuration" subtitle="Behaviour and visible modules of the POS workspace." />
+      <SectionHeading title="Dine-In Configuration" subtitle="Behaviour and visible modules of the dine-in workspace." />
 
       {/* Seating Flow */}
       <div className="space-y-2">
@@ -92,9 +92,9 @@ export default function HubSection({ settings, update }: SectionProps) {
         </div>
       )}
 
-      {/* Visible Tabs */}
+      {/* Dine-In tabs */}
       <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-[#888] uppercase tracking-wider flex items-center gap-1.5"><LayoutGrid size={12} /> Visible Tabs</h4>
+        <h4 className="text-xs font-semibold text-[#888] uppercase tracking-wider flex items-center gap-1.5"><LayoutGrid size={12} /> Dine-In Tabs</h4>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
             <input type="checkbox" className={checkboxCls} checked={settings.hub.showFloorPlan} onChange={(e) => update('hub.showFloorPlan', e.target.checked)} />
@@ -105,6 +105,23 @@ export default function HubSection({ settings, update }: SectionProps) {
             <ClipboardList size={14} className="text-[#555]" /> Orders
           </label>
           <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
+            <input type="checkbox" className={checkboxCls} checked={settings.hub.showOrderList} onChange={(e) => update('hub.showOrderList', e.target.checked)} />
+            <History size={14} className="text-[#555]" /> Order History
+          </label>
+        </div>
+      </div>
+
+      {/* Workspaces offered. These were tab toggles until Phase 16 §3; Takeaway
+          and Delivery are their own pages now, so the setting governs whether
+          the door is offered at all rather than whether a tab is drawn. */}
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-[#888] uppercase tracking-wider flex items-center gap-1.5"><ShoppingBag size={12} /> Workspaces Offered</h4>
+        <p className="text-[11px] text-[#666]">
+          Turning one off hides its link in the sidebar and on the home screen.
+          Staff whose role lands them there are unaffected.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
             <input type="checkbox" className={checkboxCls} checked={settings.hub.showTakeaway} onChange={(e) => update('hub.showTakeaway', e.target.checked)} />
             <ShoppingBag size={14} className="text-[#555]" /> Takeaway
           </label>
@@ -112,21 +129,24 @@ export default function HubSection({ settings, update }: SectionProps) {
             <input type="checkbox" className={checkboxCls} checked={settings.hub.showDelivery} onChange={(e) => update('hub.showDelivery', e.target.checked)} />
             <Truck size={14} className="text-[#555]" /> Delivery
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#ccc] cursor-pointer">
-            <input type="checkbox" className={checkboxCls} checked={settings.hub.showOrderList} onChange={(e) => update('hub.showOrderList', e.target.checked)} />
-            <History size={14} className="text-[#555]" /> Order History
-          </label>
         </div>
       </div>
 
-      {/* Default Tab */}
-      <Field label="Default Tab on Launch">
-        <select className={selectCls} value={settings.hub.defaultTab} onChange={(e) => update('hub.defaultTab', e.target.value)}>
+      {/* Default Tab. Takeaway and Delivery are not offered — they are pages,
+          not tabs. A site that still has one stored opens on Floor Plan. */}
+      <Field label="Dine-In Opens On">
+        <select
+          className={selectCls}
+          value={
+            settings.hub.defaultTab === 'takeaway' || settings.hub.defaultTab === 'delivery'
+              ? 'floor-plan'
+              : settings.hub.defaultTab
+          }
+          onChange={(e) => update('hub.defaultTab', e.target.value)}
+        >
           <option value="floor-plan">Floor Plan</option>
           <option value="orders">Orders</option>
           <option value="order-editor">Order Editor</option>
-          <option value="takeaway">Takeaway</option>
-          <option value="delivery">Delivery</option>
           <option value="order-list">Order History</option>
         </select>
       </Field>

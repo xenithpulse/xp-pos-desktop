@@ -717,13 +717,15 @@ export function useOrderEditorState(
 
   const handleOpenPayment = useCallback(() => {
     if (!activeOrder) return;
+    // Default to the whole remaining balance so the common case — one method,
+    // pay it all — is a single tap. Splitting is then a deliberate edit.
     setPaymentAmount(String(activeOrder.amountDue || activeOrder.grandTotal || 0));
-    setPaymentMethod('cash');
+    setPaymentMethod(paymentMethods[0]?.id ?? 'cash');
     setPaymentRef('');
     setPaymentError(null);
     setPaymentSuccess(false);
     setShowPaymentDrawer(true);
-  }, [activeOrder]);
+  }, [activeOrder, paymentMethods]);
 
   const handleSubmitPayment = useCallback(async () => {
     if (!activeOrder?._id) return;
@@ -762,12 +764,16 @@ export function useOrderEditorState(
       onOrderUpdated?.(updatedOrder);
       setPaymentSuccess(true);
 
-      if (updatedOrder.paymentStatus === 'paid') {
+      // Settled is `amountDue <= 0`, not `paymentStatus === 'paid'`: an order
+      // paid across two methods lands on 'split', so keying off 'paid' left the
+      // drawer open forever on exactly the case §2.2 exists to support.
+      if (updatedOrder.amountDue <= 0) {
         setTimeout(() => {
           setShowPaymentDrawer(false);
           setPaymentSuccess(false);
         }, 1500);
       } else {
+        // Re-arm with the new remaining balance so the next split is one tap.
         setPaymentAmount(String(updatedOrder.amountDue));
         setTimeout(() => setPaymentSuccess(false), 2000);
       }
@@ -777,6 +783,41 @@ export function useOrderEditorState(
       setIsSubmittingPayment(false);
     }
   }, [activeOrder, paymentAmount, paymentMethod, paymentRef, resolvePaymentMethod, onOrderUpdated]);
+
+  /**
+   * Undo one recorded payment. Wrong method or wrong amount is an ordinary
+   * mid-service mistake; before this the only remedy was the database.
+   * Server recomputes amountPaid / amountDue / paymentStatus from what's left.
+   */
+  const handleRemovePayment = useCallback(async (paymentId: string) => {
+    if (!activeOrder?._id) return;
+
+    setIsSubmittingPayment(true);
+    setPaymentError(null);
+
+    try {
+      const res = await fetch(`/api/orders/${activeOrder._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove_payment', paymentId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to remove payment');
+      }
+
+      const updatedOrder: Order = await res.json();
+      setCachedOrder(updatedOrder);
+      onOrderUpdated?.(updatedOrder);
+      // Re-arm the amount field to whatever is now outstanding.
+      setPaymentAmount(String(updatedOrder.amountDue));
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : 'Could not remove that payment');
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  }, [activeOrder, onOrderUpdated]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Lifecycle actions (OPTIMISTIC — confirm later)
@@ -1168,13 +1209,18 @@ export function useOrderEditorState(
       lineNum++;
     }
 
-    // Payments section
+    // Payments section — one line per payment, using the tenant's own method
+    // name (methodLabel) rather than the coarse category, so "JazzCash" does
+    // not print as "Other". Totalled when the bill was split.
     let txnHTML = '';
     if (activeOrder.transactions?.length) {
       txnHTML = `<div class="divider"></div><div class="section-title">PAYMENTS</div>`;
       for (const txn of activeOrder.transactions) {
-        const method = PAYMENT_METHOD_LABELS[txn.method] || txn.method;
+        const method = txn.methodLabel || PAYMENT_METHOD_LABELS[txn.method] || txn.method;
         txnHTML += `<div class="item-row small"><span>${method}</span><span>${formatPrice(txn.amount)}</span></div>`;
+      }
+      if (activeOrder.transactions.length > 1) {
+        txnHTML += `<div class="item-row small bold"><span>Total Paid</span><span>${formatPrice(activeOrder.amountPaid)}</span></div>`;
       }
     }
 
@@ -1302,10 +1348,13 @@ export function useOrderEditorState(
     [activeOrder?.status],
   );
 
+  // "Payments are a live concern on this order" — NOT "money is still owed".
+  // A fully-settled order still needs its payment panel reachable so a wrong
+  // method or amount can be removed and re-taken. Whether anything is still
+  // owed is `amountDue`, and the footer disables Add Payment from that.
   const canPay =
     activeOrder != null &&
     (activeOrder.items?.length ?? 0) > 0 &&
-    activeOrder.paymentStatus !== 'paid' &&
     !['cancelled', 'draft'].includes(activeOrder.status);
 
   // Forced cancellation: any order that isn't already cancelled can be voided —
@@ -1380,6 +1429,7 @@ export function useOrderEditorState(
     paymentSuccess,
     handleOpenPayment,
     handleSubmitPayment,
+    handleRemovePayment,
 
     handleLifecycleAction,
     handleCancelOrder,

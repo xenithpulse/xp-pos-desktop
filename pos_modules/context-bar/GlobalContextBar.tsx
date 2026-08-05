@@ -60,6 +60,16 @@ import { ThermalPrinterStatus, PrinterSettingsPanel } from '../orders/printing-f
 // Tab Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The tabs of the dine-in workspace.
+ *
+ * Takeaway and Delivery are NOT here. They are their own pages (/takeaway,
+ * /delivery) and were removed from this strip in Phase 16 §3 — carrying them
+ * in both places meant two routes to the same screen and a tab strip that
+ * contradicted the sidebar. The capability is untouched: those routes render
+ * the same component pinned to a workspace, which still drives the
+ * `takeawaySlot` / `deliverySlot` context-bar content below.
+ */
 const TABS: TabConfig[] = [
   {
     id: 'floor-plan',
@@ -75,16 +85,6 @@ const TABS: TabConfig[] = [
     id: 'order-editor',
     label: 'Order Editor',
     icon: <PenSquare size={18} />,
-  },
-  {
-    id: 'takeaway',
-    label: 'Takeaway',
-    icon: <ShoppingBag size={18} />,
-  },
-  {
-    id: 'delivery',
-    label: 'Delivery',
-    icon: <Truck size={18} />,
   },
   {
     id: 'order-list',
@@ -519,10 +519,10 @@ export default function GlobalContextBar({
                 <button
                   onClick={onPrintKOT}
                   className="flex items-center gap-1.5 px-2 md:px-2.5 py-2 bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30 rounded-lg text-xs font-medium transition-colors"
-                  title="Print Kitchen Order Ticket"
+                  title="Print Kitchen Ticket"
                 >
                   <Printer size={14} />
-                  <span className="hidden lg:inline">KOT</span>
+                  <span className="hidden lg:inline">Kitchen Ticket</span>
                 </button>
                 <button
                   onClick={onPrintInvoice}
@@ -530,7 +530,7 @@ export default function GlobalContextBar({
                   title="Print Invoice / Bill"
                 >
                   <FileText size={14} />
-                  <span className="hidden lg:inline">Invoice</span>
+                  <span className="hidden lg:inline">Receipt</span>
                 </button>
               </div>
             )}

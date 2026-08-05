@@ -29,6 +29,12 @@ export interface TakeawayClientPanelProps {
   onAddressSelect: (addressId: string) => void;
   /** Disable interactions (e.g. while committing) */
   disabled?: boolean;
+  /**
+   * Bump to pull focus to the customer search box. Driven by the locked
+   * catalogue's "Add Customer" control (Phase 16 §2.1) — the message has to
+   * land the person on the field, not just point at it.
+   */
+  focusSignal?: number;
 }
 
 // Debounce delay for search
@@ -41,6 +47,7 @@ export default function TakeawayClientPanel({
   selectedAddressId,
   onAddressSelect,
   disabled,
+  focusSignal = 0,
 }: TakeawayClientPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,6 +122,18 @@ export default function TakeawayClientPanel({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showDropdown]);
+
+  // Focus (and expand) the search box when the locked catalogue asks us to.
+  // Skipped on first render — 0 is "nobody has asked".
+  useEffect(() => {
+    if (!focusSignal) return;
+    setIsExpanded(true);
+    const id = requestAnimationFrame(() => {
+      inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      inputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [focusSignal]);
 
   // ── Select existing customer ─────────────────────────────────────────────
   const handleSelectCustomer = useCallback(

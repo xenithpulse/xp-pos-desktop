@@ -269,6 +269,12 @@ export async function DELETE(request: NextRequest) {
 // PATCH - Quick status update (with optimistic concurrency)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * PATCH actions that move money. Gated a second time, on the narrower
+ * ORDER_WORKSPACE_PERMS, inside the handler.
+ */
+const MONEY_ACTIONS = new Set(['add_payment', 'remove_payment', 'set_credit', 'complete_and_pay']);
+
 // Status transitions, which is how the kitchen moves a ticket from preparing
 // to ready. Wider than PUT and DELETE above on purpose: a chef may advance an
 // order, and must not be able to rewrite or delete one.
@@ -284,6 +290,14 @@ export async function PATCH(request: NextRequest) {
   
   try {
     const { action, ...data } = await request.json();
+
+    // PATCH is deliberately open to the kitchen so a chef can advance a ticket
+    // (see ORDER_READ_PERMS). Money is a different job: recording or undoing a
+    // payment is the till's, and `view_kitchen` must not carry it.
+    if (MONEY_ACTIONS.has(action)) {
+      const moneyDenied = await isAdminRequest({ anyPerm: ORDER_WORKSPACE_PERMS });
+      if (moneyDenied) return moneyDenied;
+    }
 
     const result = await withRetry(async () => {
       const order = await Order.findById(id);
@@ -556,6 +570,17 @@ export async function PATCH(request: NextRequest) {
           
         case 'add_payment':
           if (data.payment) {
+            // Phase 16 §2.3 — nothing owed, nothing to take. An extra payment
+            // on a settled order is a cash-drawer discrepancy at close, and by
+            // then the person who caused it has gone home. Tips are a separate,
+            // labelled thing (tp), never a silent extra payment.
+            // `ad` is recomputed from `tx` on every save, so this is current.
+            if (order.ad <= 0) {
+              return NextResponse.json(
+                { error: 'This order is fully paid. Nothing left to pay.' },
+                { status: 409 },
+              );
+            }
             order.tx.push({
               // `method` is the coarse category (cash/card/online/other);
               // `methodLabel` preserves the tenant's custom method name.
@@ -568,7 +593,33 @@ export async function PATCH(request: NextRequest) {
             });
           }
           break;
-          
+
+        // Undo a payment recorded on this order. Wrong method or wrong amount
+        // is a normal thing to happen at a till mid-service; without this the
+        // only remedy was editing the database. Totals (ap/ad/ps) are derived
+        // from `tx` in the model's pre-save hook, so removing the entry is the
+        // whole fix.
+        case 'remove_payment': {
+          // `_id` is a Mongoose subdocument id — present at runtime, absent
+          // from IPaymentTransaction, hence the narrow cast.
+          const txIdx = order.tx.findIndex(
+            (t) => (t as unknown as { _id?: { toString(): string } })._id?.toString() === data.paymentId,
+          );
+          if (txIdx === -1) {
+            return NextResponse.json({ error: 'Payment not found on this order' }, { status: 404 });
+          }
+          // A closed order's payments are an accounting record, not a draft.
+          if (order.s === ORDER_STATUS.completed) {
+            return NextResponse.json(
+              { error: 'This order is closed. Payments on a closed order cannot be removed.' },
+              { status: 409 },
+            );
+          }
+          order.tx.splice(txIdx, 1);
+          break;
+        }
+
+
         case 'update_item_status':
           if (data.itemId && data.itemStatus) {
             const item = order.i.find((i: any) => i._id?.toString() === data.itemId);

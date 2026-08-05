@@ -219,6 +219,12 @@ export function landingPathForRole(role: AdminRole | string | undefined): string
       return '/takeaway';
     case 'chef':
       return '/kitchen';
+    // The people who work the floor start on the floor. Sending a waiter to the
+    // home screen costs one extra tap at the start of every shift, and the tile
+    // they want is the one they would have to find first anyway.
+    case 'waiter':
+    case 'cashier':
+      return '/dine-in';
     default:
       return '/';
   }

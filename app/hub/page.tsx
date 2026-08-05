@@ -1,16 +1,14 @@
 // app/hub/page.tsx
 //
-// The full POS floor: every tab the site's settings enable. The component that
-// backs it also backs /takeaway and /delivery in pinned form - see
-// features/pos/ManagementHub.tsx.
+// Kept alive purely as a redirect. The screen moved to /dine-in in Phase 16 §3;
+// this route stays because desktop shortcuts, printed cards and bookmarks on
+// staff tablets all point at /hub, and a dead link on a till during service
+// turns a rename into a support call.
+//
+// Permanent, so browsers and the shortcut stop asking. Do not add UI here.
 
-import ManagementHub from "@/features/pos/ManagementHub";
-import RequirePermission from "@/components/auth/RequirePermission";
+import { permanentRedirect } from "next/navigation";
 
-export default function HubPage() {
-  return (
-    <RequirePermission permission="manage_orders">
-      <ManagementHub />
-    </RequirePermission>
-  );
+export default function HubPage(): never {
+  permanentRedirect("/dine-in");
 }

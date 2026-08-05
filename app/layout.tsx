@@ -26,7 +26,14 @@ interface RouteAccessConfig {
 const ROUTE_ACCESS_CONFIG: Record<string, RouteAccessConfig> = {
   // Super admin only routes
   "/daily-sheet": { allowedRoles: ["super_admin", "manager"] },
-  "/hub": { allowedRoles: ["super_admin", "manager"] },
+  // Gated on the permission the page itself enforces (RequirePermission
+  // "manage_orders"), not on a role list. A waiter and a cashier both hold
+  // manage_orders and the sidebar has always offered them this link — with a
+  // role list here they were shown the door and then refused at it, and Phase
+  // 16 §3 makes it their landing page, so that would now happen every shift.
+  "/dine-in": { requiredPermissions: ["manage_orders"] },
+  // Redirects to /dine-in; same door, same lock.
+  "/hub": { requiredPermissions: ["manage_orders"] },
   "/analytics": { allowedRoles: ["super_admin"] },
   "/system-overview": { allowedRoles: ["super_admin"] },
   "/messenger": { allowedRoles: ["super_admin"] },
@@ -195,7 +202,9 @@ function SessionTimeoutToast(): JSX.Element | null {
 function SidebarWithToggle() {
   const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
   const pathname = usePathname();
-  const isHubPage = pathname === "/hub";
+  // The dine-in workspace is the one screen that hides the nav rail to reclaim
+  // width for the floor plan. /hub is the old path, kept as a redirect.
+  const isHubPage = pathname === "/dine-in" || pathname === "/hub";
   // Kitchen display: full-screen ticket board, never needs the admin nav.
   const isKitchenPage = pathname === "/kitchen";
 
@@ -214,7 +223,9 @@ function MainContentWithToggle({
 }) {
   const sidebarVisible = usePOSStore((s) => s.sidebarVisible);
   const pathname = usePathname();
-  const isHubPage = pathname === "/hub";
+  // The dine-in workspace is the one screen that hides the nav rail to reclaim
+  // width for the floor plan. /hub is the old path, kept as a redirect.
+  const isHubPage = pathname === "/dine-in" || pathname === "/hub";
   const isKitchenPage = pathname === "/kitchen";
   const hideSidebar = isKitchenPage || (isHubPage && !sidebarVisible);
 

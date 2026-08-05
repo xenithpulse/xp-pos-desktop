@@ -237,22 +237,35 @@ export interface IHubConfig {
   /** Allow staff to seat a walk-in on a table that is inside a hold window. */
   allowWalkInDuringHold: boolean;
 
-  /** Which tab to open by default when the hub loads. */
+  /**
+   * Which tab to open by default on the Dine-In workspace.
+   *
+   * 'takeaway' / 'delivery' remain in the union only so settings saved before
+   * Phase 16 §3 still parse — they are no longer tabs here, and the workspace
+   * falls back to the floor plan if it finds one stored. New values are not
+   * offered in the admin UI.
+   */
   defaultTab: 'floor-plan' | 'orders' | 'order-editor' | 'order-list' | 'takeaway' | 'delivery';
 
-  /** Show the Floor Plan tab in the hub. */
+  /** Show the Floor Plan tab on the Dine-In workspace. */
   showFloorPlan: boolean;
 
-  /** Show the Orders grid/list tab in the hub. */
+  /** Show the Orders grid/list tab on the Dine-In workspace. */
   showOrders: boolean;
 
-  /** Show the Takeaway tab in the hub. */
+  /**
+   * Offer the Takeaway workspace at all — the sidebar link and the home tile
+   * for /takeaway. Phase 16 §3: this used to hide a tab inside the hub; the
+   * tab is gone, so it now controls whether the page is offered. A restaurant
+   * that does no takeaway turns this off and the door disappears.
+   */
   showTakeaway: boolean;
 
-  /** Show the Delivery tab in the hub. */
+  /** Offer the Delivery workspace at all — the sidebar link and home tile for
+   *  /delivery. See showTakeaway. */
   showDelivery: boolean;
 
-  /** Show the Order List (history) tab in the hub. */
+  /** Show the Order History tab on the Dine-In workspace. */
   showOrderList: boolean;
 
   /** Automatically close the table session when the order is fully paid. */

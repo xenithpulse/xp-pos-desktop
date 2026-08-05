@@ -7,17 +7,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock,
-  User,
   MapPin,
   ChevronRight,
   Flame,
   CheckCircle2,
   Timer,
-  CreditCard,
-  MoreHorizontal,
-  Play,
-  Check,
-  XCircle,
   UtensilsCrossed,
   Package,
   Truck,
@@ -25,7 +19,6 @@ import {
 } from 'lucide-react';
 import {
   Order,
-  OrderStatus,
   ORDER_STATUS_LABELS,
   ORDER_STATUS_COLORS,
   PAYMENT_STATUS_LABELS,
@@ -33,6 +26,17 @@ import {
   ORDER_MODE_LABELS,
   ORDER_MODE_COLORS,
 } from '@/types/order.types';
+import { getNextStatusAction, type StatusActionColor } from '../statusLadder';
+
+// Static class map — Tailwind JIT cannot see interpolated class names.
+const LIST_ACTION_STYLES: Record<StatusActionColor, string> = {
+  blue: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30',
+  amber: 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30',
+  green: 'bg-green-500/20 text-green-400 hover:bg-green-500/30',
+  cyan: 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30',
+  purple: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30',
+  emerald: 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -146,9 +150,12 @@ export default function OrderManagerList({
               const isUrgent = elapsedMinutes > 20 && !['completed', 'cancelled'].includes(order.status);
               const isOverdue = elapsedMinutes > 30 && !['completed', 'cancelled'].includes(order.status);
 
-              const displayName = order.table?.tableNumber 
+              const displayName = order.table?.tableNumber
                 ? `Table ${order.table.tableNumber}`
                 : order.customer?.name || '—';
+
+              // Hub list view — the full ladder, including Close Order.
+              const nextAction = getNextStatusAction(order.status, order.mode, 'hub');
 
               return (
                 <motion.div
@@ -252,72 +259,36 @@ export default function OrderManagerList({
                     </div>
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions. One button, from the shared ladder — this column
+                      used to carry its own copy of the transitions and offered
+                      Complete straight from Ready for takeaway. */}
                   <div className="col-span-2 flex items-center justify-end gap-2">
-                    {order.status === 'draft' && (
+                    {nextAction && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onStatusChange(order._id, 'confirm');
+                          onStatusChange(order._id, nextAction.action);
                         }}
-                        className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors"
+                        className={`
+                          inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                          text-xs font-medium transition-colors
+                          ${LIST_ACTION_STYLES[nextAction.color]}
+                        `}
                       >
-                        Confirm
+                        <nextAction.icon size={13} />
+                        {nextAction.label}
                       </button>
                     )}
-                    {order.status === 'confirmed' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStatusChange(order._id, 'start_preparing');
-                        }}
-                        className="px-3 py-1 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/30 transition-colors"
-                      >
-                        Start Prep
-                      </button>
-                    )}
-                    {order.status === 'preparing' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStatusChange(order._id, 'mark_ready');
-                        }}
-                        className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors"
-                      >
-                        Ready
-                      </button>
-                    )}
-                    {order.status === 'ready' && order.mode === 'dine_in' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStatusChange(order._id, 'mark_served');
-                        }}
-                        className="px-3 py-1 rounded-lg bg-cyan-500/20 text-cyan-400 text-xs font-medium hover:bg-cyan-500/30 transition-colors"
-                      >
-                        Served
-                      </button>
-                    )}
-                    {(order.status === 'ready' && order.mode !== 'dine_in') || order.status === 'served' ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStatusChange(order._id, 'complete');
-                        }}
-                        className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition-colors"
-                      >
-                        Complete
-                      </button>
-                    ) : null}
 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onViewDetails(order);
                       }}
-                      className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
                     >
-                      <ChevronRight size={18} />
+                      Details
+                      <ChevronRight size={14} />
                     </button>
                   </div>
                 </motion.div>

@@ -5,15 +5,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle2, Timer, UtensilsCrossed, Truck, AlertCircle } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import { CheckCircle2, Timer, UtensilsCrossed, Truck, AlertCircle } from 'lucide-react';
 import OrderCard from './OrderCard';
-import {
-  Order,
-  OrderStatus,
-  ORDER_STATUS_LABELS,
-  ORDER_STATUS_COLORS,
-} from '@/types/order.types';
+import { Order, OrderStatus } from '@/types/order.types';
+import type { OrderSurface } from '../statusLadder';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -22,8 +18,17 @@ import {
 interface OrderManagerGridProps {
   orders: Order[];
   onStatusChange: (orderId: string, action: string) => void;
-  onViewDetails: (order: Order) => void;
+  /** Omit on a kitchen board that has no panel to open — the card then renders
+   *  no Details control rather than one wired to nothing. */
+  onViewDetails?: (order: Order) => void;
   isLoading: boolean;
+  /**
+   * Which screen this grid is. Phase 16 §1.2: this is a prop, never a guess
+   * from the current route.
+   *  - 'kds'  kitchen board. Card body inert, ladder stops at Served / Out.
+   *  - 'hub'  management view. Card body opens the details panel.
+   */
+  surface?: OrderSurface;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +83,7 @@ export default function OrderManagerGrid({
   onStatusChange,
   onViewDetails,
   isLoading,
+  surface = 'hub',
 }: OrderManagerGridProps) {
   // Group orders by column
   const ordersByColumn = useMemo(() => {
@@ -97,16 +103,9 @@ export default function OrderManagerGrid({
     return grouped;
   }, [orders]);
 
-  // Quick-action click handler:
-  // Preparing → mark_ready on click (kanban quick-advance)
-  // Other statuses → open details panel
-  const handleCardClick = (order: Order) => {
-    if (order.status === 'preparing') {
-      onStatusChange(order._id, 'mark_ready');
-    } else {
-      onViewDetails(order);
-    }
-  };
+  // Phase 16 §1.2: the "Preparing column advances on body tap, every other
+  // column opens a panel" special case is gone. One rule for every column — the
+  // labelled action button is the only thing that changes an order's status.
 
   if (isLoading && orders.length === 0) {
     return (
@@ -121,11 +120,15 @@ export default function OrderManagerGrid({
 
   if (orders.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-gray-400">
-          <UtensilsCrossed size={48} className="text-gray-600" />
-          <span className="text-lg">No active orders</span>
-          <span className="text-sm text-gray-500">New orders will appear here</span>
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <UtensilsCrossed size={44} className="text-gray-600" />
+          <span className="text-lg text-gray-300">Nothing cooking right now.</span>
+          <span className="text-sm text-gray-500 max-w-sm">
+            {surface === 'kds'
+              ? 'Tickets appear here the moment the till sends an order to the kitchen. Nothing to do until one does.'
+              : 'Start an order from the floor plan, or open Takeaway or Delivery for a counter order.'}
+          </span>
         </div>
       </div>
     );
@@ -184,7 +187,8 @@ export default function OrderManagerGrid({
                       key={order._id}
                       order={order}
                       onStatusChange={onStatusChange}
-                      onViewDetails={handleCardClick}
+                      onViewDetails={onViewDetails}
+                      surface={surface}
                     />
                   ))}
                 </AnimatePresence>

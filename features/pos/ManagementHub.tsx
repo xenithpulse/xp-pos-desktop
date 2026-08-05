@@ -1,13 +1,22 @@
 // features/pos/ManagementHub.tsx
 // ManagementHub - Dedicated Workspace Architecture
-// Tabs: Floor Plan | Orders (Grid) | Order Editor | Takeaway | Order List
+// Dine-In tabs: Floor Plan | Orders | Order Editor | History
 //
 // ── WHY THIS IS A COMPONENT AND NOT A PAGE ANY MORE ──────────────────────────
-// It used to be app/hub/page.tsx. It now backs four routes:
+// It used to be app/hub/page.tsx. It now backs three routes:
 //
-//   /hub        everything (floor plan, orders, takeaway, delivery, list)
+//   /dine-in    the dine-in workspace (floor plan, orders, editor, history)
 //   /takeaway   pinned to takeaway
 //   /delivery   pinned to delivery
+//
+// /hub is a permanent redirect to /dine-in and renders nothing itself.
+//
+// Phase 16 §3 removed the Takeaway and Delivery TABS from the dine-in strip:
+// they had their own pages already, so carrying them here as well meant two
+// routes to the same screen and a tab strip that contradicted the sidebar.
+// The tab went, not the capability — `activeTab === 'takeaway' | 'delivery'`
+// below is still live code, reached by the pinned routes, and so are
+// handleTakeawayInitiate / fetchTakeawayOrders and their delivery twins.
 //
 // Plenty of restaurants put one person on delivery and another on takeaway for
 // a whole shift. Those people do not need the floor plan and they do not need
@@ -169,14 +178,16 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
       ['floor-plan', 'orders', 'order-editor', 'order-list', 'takeaway', 'delivery'];
     if (workspace) return ALL.filter((t) => t !== workspace);
 
+    // Takeaway and Delivery are not tabs here any more (Phase 16 §3) — they
+    // are their own pages, and `showTakeaway`/`showDelivery` now govern whether
+    // those pages are offered in the sidebar and on the home screen, not this
+    // strip. Nothing to hide for them.
     const hidden: import('@/stores/posStore').ActiveTab[] = [];
     if (!hub.showFloorPlan)  hidden.push('floor-plan');
     if (!hub.showOrders)     hidden.push('orders');
-    if (!hub.showTakeaway)   hidden.push('takeaway');
-    if (!hub.showDelivery)   hidden.push('delivery');
     if (!hub.showOrderList)  hidden.push('order-list');
     return hidden;
-  }, [workspace, hub.showFloorPlan, hub.showOrders, hub.showTakeaway, hub.showDelivery, hub.showOrderList]);
+  }, [workspace, hub.showFloorPlan, hub.showOrders, hub.showOrderList]);
 
   // Set the opening tab.
   //
@@ -196,7 +207,13 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
     if (defaultTabApplied.current) return;
     if (!settings?.hub) return; // wait until settings have loaded
     defaultTabApplied.current = true;
-    setActiveTab(settings.hub.defaultTab);
+    // A site configured before Phase 16 §3 may still have 'takeaway' or
+    // 'delivery' stored as its default tab. Those are pages now, not tabs, so
+    // honouring it would open the Dine-In workspace on a tab that does not
+    // exist — an empty screen with nothing to click.
+    const stored = settings.hub.defaultTab;
+    const isTab = stored !== 'takeaway' && stored !== 'delivery';
+    setActiveTab(isTab ? stored : 'floor-plan');
   }, [workspace, settings?.hub, setActiveTab]);
 
   // AbortControllers for fetch dedup — concurrent calls cancel the previous in-flight request
@@ -1571,11 +1588,11 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
 
           {hasPermission(session?.user?.role, session?.user?.permissions, 'manage_orders') && (
             <Link
-              href="/hub"
+              href="/dine-in"
               className="shrink-0 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium
                          text-white/60 transition-colors hover:border-white/35 hover:text-white"
             >
-              Full POS
+              Dine-In
             </Link>
           )}
         </div>
@@ -1670,6 +1687,9 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
                 mode="dine-in"
                 tables={tables}
                 sections={sections}
+                // Powers the "Choose a Table" control inside the locked-catalogue
+                // message when an order has no table yet (Phase 16 §2.1).
+                onChooseTable={() => setActiveTab('floor-plan')}
                 onOrderFired={() => {
                   // After firing items, stats change but the order was already
                   // broadcast via Pusher — batch stats refresh with incoming events.

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useSidebarCollapsed } from "@/lib/hooks/useSidebarCollapsed";
+import { usePOSStore } from "@/stores/posStore";
 import { hasPermission } from "@/types/admin.types";
 import type { AdminPermission, AdminRole } from "@/types/admin.types";
 
@@ -48,6 +49,13 @@ interface NavItem {
   icon: React.ReactNode;
   perms?: AdminPermission[];
   roles?: AdminRole[];
+  /**
+   * A hub setting that must be on for this door to be offered, on top of the
+   * permission check. Phase 16 §3: `showTakeaway` / `showDelivery` used to hide
+   * a tab inside the hub; the tab is gone, so they gate the page instead.
+   * A restaurant that does no delivery should not carry a Delivery link.
+   */
+  setting?: 'showTakeaway' | 'showDelivery';
 }
 
 // Each `perms` entry MUST match the guard on the page it links to - see the
@@ -55,9 +63,10 @@ interface NavItem {
 // is visible but leads to a redirect is worse than no link, because the user
 // concludes the software is broken rather than that the door is not theirs.
 const NAV_ITEMS: NavItem[] = [
-  { href: "/hub", label: "POS Floor", icon: <Utensils size={NAV_ICON_SIZE} />, perms: ["manage_orders"] },
-  { href: "/takeaway", label: "Takeaway", icon: <ShoppingBag size={NAV_ICON_SIZE} />, perms: ["manage_takeaway"] },
-  { href: "/delivery", label: "Delivery", icon: <Bike size={NAV_ICON_SIZE} />, perms: ["manage_delivery"] },
+  // The four workspaces, in the order a shift uses them.
+  { href: "/dine-in", label: "Dine-In", icon: <Utensils size={NAV_ICON_SIZE} />, perms: ["manage_orders"] },
+  { href: "/takeaway", label: "Takeaway", icon: <ShoppingBag size={NAV_ICON_SIZE} />, perms: ["manage_takeaway"], setting: "showTakeaway" },
+  { href: "/delivery", label: "Delivery", icon: <Bike size={NAV_ICON_SIZE} />, perms: ["manage_delivery"], setting: "showDelivery" },
   { href: "/kitchen", label: "Kitchen", icon: <ChefHat size={NAV_ICON_SIZE} />, perms: ["view_kitchen"] },
   { href: "/daily-sheet", label: "Daily Sheet", icon: <BookOpen size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
   { href: "/analytics", label: "Analytics", icon: <BarChart3 size={NAV_ICON_SIZE} />, perms: ["view_reports"] },
@@ -73,9 +82,15 @@ function useVisibleNavItems(): NavItem[] {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const perms = session?.user?.permissions;
+  const hub = usePOSStore((s) => s.settings?.hub);
 
   return useMemo(() => {
     return NAV_ITEMS.filter((item) => {
+      // A workspace the restaurant has switched off is not offered to anyone,
+      // super_admin included — the point is that the site does not do it.
+      // Undefined settings (not loaded yet) mean "on", so the rail does not
+      // flicker items in on a slow settings fetch.
+      if (item.setting && hub && hub[item.setting] === false) return false;
       if (role === "super_admin") return true; // super admin sees everything
       if (!item.roles && !item.perms) return true; // ungated
       const roleOk = item.roles ? item.roles.includes(role as AdminRole) : false;
@@ -85,7 +100,7 @@ function useVisibleNavItems(): NavItem[] {
       const permOk = item.perms ? item.perms.some((p) => hasPermission(role, perms, p)) : false;
       return roleOk || permOk;
     });
-  }, [role, perms]);
+  }, [role, perms, hub]);
 }
 
 /** Home matches only the exact root; every other item matches itself + subpaths. */
