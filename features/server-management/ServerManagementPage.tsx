@@ -43,7 +43,7 @@ import {
   FlaskConical,
   Gauge,
   HardDrive,
-  Home,
+  ArrowLeft,
   KeyRound,
   LayoutDashboard,
   Menu,
@@ -229,6 +229,14 @@ export default function ServerManagementPage() {
               <Menu size={18} />
             </button>
             <span className="text-sm font-semibold">{active.label}</span>
+            <Link
+              href="/"
+              className="ml-auto flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold
+                         text-black transition-colors hover:bg-neutral-200"
+            >
+              <ArrowLeft size={14} />
+              Back to the POS
+            </Link>
           </div>
 
           <div className="px-4 py-6 sm:px-8 sm:py-10">
@@ -316,6 +324,18 @@ function Sidebar({
           </button>
         </div>
 
+        {/* The way back, first and unmissable. This used to sit under two
+            groups of links at the bottom of a rail that is off-canvas below
+            lg — on a till, that is not a way out, it is a rumour. */}
+        <Link
+          href="/"
+          className="mb-5 flex items-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-semibold
+                     text-black transition-colors hover:bg-neutral-200"
+        >
+          <ArrowLeft size={16} />
+          Back to the POS
+        </Link>
+
         <SidebarGroup
           items={EVERYDAY}
           section={section}
@@ -327,15 +347,6 @@ function Sidebar({
           Advanced
         </p>
         <SidebarGroup items={ADVANCED} section={section} onGo={onGo} badgeFor={() => null} />
-
-        <Link
-          href="/"
-          className="mt-6 flex items-center gap-2 rounded-lg border border-neutral-800 px-3 py-2.5 text-sm
-                     font-medium text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
-        >
-          <Home size={16} />
-          Back to the POS
-        </Link>
       </nav>
     </>
   );

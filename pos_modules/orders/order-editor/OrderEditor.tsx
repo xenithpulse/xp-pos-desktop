@@ -301,6 +301,7 @@ const OrderEditor = forwardRef<OrderEditorHandle, OrderEditorFullProps>(
             completeError={state.completeError}
             canPay={state.canPay}
             onOpenPayment={state.handleOpenPayment}
+            onReopenOrder={state.handleReopenOrder}
             clearErrors={state.clearErrors}
             onSwitchToCatalog={() => setMobileView('catalog')}
           />

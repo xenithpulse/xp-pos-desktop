@@ -41,6 +41,7 @@ import {
   ORDER_STATUS_COLORS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_COLORS,
+  OrderMode,
   ORDER_MODE_LABELS,
   ORDER_MODE_COLORS,
   PAYMENT_METHOD_LABELS,
@@ -60,6 +61,20 @@ interface OrderListProps {
   /** Called when user clicks an order to open in the editor */
   onOpenInEditor?: (order: Order) => void;
   /**
+   * Restrict the list to one order type. Set by the pinned Takeaway and
+   * Delivery workspaces so their history shows their own orders and nothing
+   * else — a counter person looking for this morning's collections should not
+   * have to scroll past the dining room.
+   */
+  mode?: OrderMode;
+  /**
+   * Tab to switch to when an order is opened. Pass `null` when the caller owns
+   * navigation — the pinned Takeaway and Delivery workspaces do, and letting
+   * this list switch to 'order-editor' there would drop the person out of
+   * their workspace into the dine-in editor, which those routes never render.
+   */
+  openInTab?: 'order-editor' | null;
+  /**
    * Monotonic counter the hub bumps on every realtime order event. When it
    * changes, this list invalidates its cache and refetches the current view —
    * keeping it live off the hub's single realtime connection (no extra socket).
@@ -71,15 +86,21 @@ const PAGE_SIZE = 20;
 
 const orderListCache = new SmartCache<OrdersResponse>({ ttl: 15_000, maxSize: 50 });
 
-function getCacheKey(subView: ListSubView, page: number, search: string, paymentFilter: string): string {
-  return `${subView}:${page}:${search}:${paymentFilter}`;
+function getCacheKey(
+  subView: ListSubView,
+  page: number,
+  search: string,
+  paymentFilter: string,
+  mode: OrderMode | 'all',
+): string {
+  return `${mode}:${subView}:${page}:${search}:${paymentFilter}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderListProps) {
+export default function OrderList({ onOpenInEditor, mode, openInTab = 'order-editor', refreshSignal = 0 }: OrderListProps) {
   const setActiveTab = usePOSStore((s) => s.setActiveTab);
   const setFocusedContext = usePOSStore((s) => s.setFocusedContext);
 
@@ -120,7 +141,7 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
 
   // Fetch orders with cache
   const fetchOrders = useCallback(async () => {
-    const cacheKey = getCacheKey(subView, page, debouncedSearch, paymentFilter);
+    const cacheKey = getCacheKey(subView, page, debouncedSearch, paymentFilter, mode ?? 'all');
     const cached = orderListCache.get(cacheKey);
     if (cached) {
       setOrders(cached.orders);
@@ -151,6 +172,10 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
         params.set('paymentStatus', paymentFilter);
       }
 
+      if (mode) {
+        params.set('mode', mode);
+      }
+
       const res = await fetch(`/api/orders?${params.toString()}`);
       if (res.ok) {
         const data: OrdersResponse = await res.json();
@@ -179,7 +204,7 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
     } finally {
       setIsLoading(false);
     }
-  }, [subView, page, debouncedSearch, paymentFilter]);
+  }, [subView, page, debouncedSearch, paymentFilter, mode]);
 
   useEffect(() => {
     fetchOrders();
@@ -218,10 +243,10 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
         order,
         tableId: order.table?.tableId,
       });
-      setActiveTab('order-editor');
+      if (openInTab) setActiveTab(openInTab);
       onOpenInEditor?.(order);
     },
-    [setFocusedContext, setActiveTab, onOpenInEditor],
+    [setFocusedContext, setActiveTab, onOpenInEditor, openInTab],
   );
 
   /**
@@ -425,7 +450,7 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
               }`}
             >
               <Clock size={14} />
-              <span className="hidden xs:inline">Ongoing</span>
+              <span>In Progress</span>
             </button>
             <button
               onClick={() => setSubView('history')}
@@ -436,7 +461,7 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
               }`}
             >
               <History size={14} />
-              <span className="hidden xs:inline">History</span>
+              <span>History</span>
             </button>
           </div>
           <span className="text-xs sm:text-sm text-gray-500 whitespace-nowrap">
@@ -460,12 +485,13 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
           <select
             value={paymentFilter}
             onChange={(e) => { setPaymentFilter(e.target.value); setPage(1); }}
+            aria-label="Filter by payment"
             className="px-2 sm:px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-xs sm:text-sm focus:outline-none focus:border-purple-500"
           >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
+            <option value="all">Any payment</option>
+            <option value="pending">Not paid</option>
             <option value="paid">Paid</option>
-            <option value="partial">Partial</option>
+            <option value="partial">Part paid</option>
           </select>
 
           <button
@@ -479,9 +505,10 @@ export default function OrderList({ onOpenInEditor, refreshSignal = 0 }: OrderLi
 
           <button
             onClick={handleRefresh}
-            className="p-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors text-xs sm:text-sm font-medium"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={14} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>

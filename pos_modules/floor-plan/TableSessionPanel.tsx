@@ -18,6 +18,7 @@ import {
   PlusCircle,
   History,
   CalendarClock,
+  CheckCircle,
 } from 'lucide-react';
 import {
   ITable,
@@ -106,6 +107,16 @@ export default function TableSessionPanel({
   const order = session?.orderId && typeof session.orderId === 'object'
     ? session.orderId
     : null;
+
+  // The order is finished but the table is still held. Historically the only
+  // way out was the session panel's "Complete Payment", which routes through
+  // `complete_and_pay` and refuses an already-completed order — so the table
+  // stayed occupied for the rest of service with nothing to press. `complete`
+  // now frees the table itself, but tables already stranded by the old
+  // behaviour (and any future failure to release) need a way back.
+  const orderIsFinished =
+    !!order && ['completed', 'cancelled'].includes((order as { status?: string }).status ?? '');
+  const tableIsStranded = !!session && session.status !== 'closed' && orderIsFinished;
 
   // Derived, not stored: a table booked for later still reads "available".
   const effectiveStatus = getEffectiveTableStatus(table, now, reservationPolicy);
@@ -393,8 +404,37 @@ export default function TableSessionPanel({
           )}
         </div>
 
-        {/* Footer actions */}
-        {session && session.status === 'active' && (
+        {/* Footer actions.
+            A finished order gets the recovery control instead of a payment
+            button that cannot succeed. */}
+        {tableIsStranded ? (
+          <div className="border-t border-gray-200 p-4 space-y-2">
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-800">
+                This order is {(order as { status?: string })?.status === 'cancelled' ? 'cancelled' : 'closed'},
+                but the table is still held. Free it to seat the next guests.
+              </p>
+            </div>
+            <button
+              onClick={handleCloseSession}
+              disabled={isActioning}
+              className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <CheckCircle size={16} />
+              <span>Free Table {table.tableNumber}</span>
+            </button>
+            {order && (
+              <button
+                onClick={() => onViewOrder(order._id)}
+                className="w-full py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <Receipt size={16} />
+                <span>Open the Order</span>
+              </button>
+            )}
+          </div>
+        ) : session && session.status === 'active' ? (
           <div className="border-t border-gray-200 p-4 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -420,10 +460,10 @@ export default function TableSessionPanel({
               className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <CreditCard size={16} />
-              <span>Complete Payment</span>
+              <span>Take Payment &amp; Free Table</span>
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* Close session button for billing status */}
         {session && session.status === 'billing' && (

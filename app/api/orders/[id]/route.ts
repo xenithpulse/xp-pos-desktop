@@ -29,6 +29,7 @@ const log = console.log;
 
 // Status code mappings
 const ORDER_STATUS = { draft: 0, confirmed: 1, preparing: 2, ready: 3, served: 4, out_for_delivery: 5, completed: 6, cancelled: 7 };
+const ORDER_MODE = { dine_in: 0, takeaway: 1, delivery: 2, drive_thru: 3, curbside: 4 };
 const PAYMENT_STATUS = { pending: 0, paid: 1, partial: 2, split: 3, credit: 4, refunded: 5, voided: 6 };
 const PAYMENT_METHOD = { cash: 0, card: 1, online: 2, other: 3 };
 const ITEM_STATUS = { pending: 0, preparing: 1, ready: 2, served: 3, cancelled: 4 };
@@ -270,10 +271,147 @@ export async function DELETE(request: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * PATCH actions that move money. Gated a second time, on the narrower
- * ORDER_WORKSPACE_PERMS, inside the handler.
+ * PATCH actions that move money or rewrite a closed order. Gated a second time,
+ * on the narrower ORDER_WORKSPACE_PERMS, inside the handler.
+ *
+ * `reopen` is here rather than with the other status changes because a closed
+ * order is a day's takings: un-closing one moves a number on a report, and that
+ * is a till decision, not a kitchen one.
  */
-const MONEY_ACTIONS = new Set(['add_payment', 'remove_payment', 'set_credit', 'complete_and_pay']);
+const MONEY_ACTIONS = new Set([
+  'add_payment',
+  'remove_payment',
+  'set_credit',
+  'complete_and_pay',
+  'reopen',
+]);
+
+/** The fields of an order document this file reaches for outside the switch. */
+type OrderDocLike = {
+  on?: unknown;
+  tb?: { ti?: { toString(): string } };
+  sid?: { toString(): string };
+};
+
+/**
+ * Send an order's table to `cleaning` and close its session.
+ *
+ * Extracted because `complete_and_pay` did this and plain `complete` did not,
+ * and the difference stranded tables: an order paid off with `add_payment` and
+ * then closed with `complete` left the table occupied with no way back — the
+ * session panel's only close control routes through `complete_and_pay`, which
+ * refuses an already-completed order.
+ *
+ * Idempotent. A table that is not `occupied` and a session that is already
+ * `closed` are both left alone, so calling this on an order whose table was
+ * freed some other way is a no-op rather than an error.
+ */
+async function releaseTableForOrder(
+  conn: Awaited<ReturnType<typeof mongooseConnect>>,
+  order: OrderDocLike,
+): Promise<void> {
+  const tableId = order.tb?.ti?.toString();
+  const sessionId = order.sid?.toString();
+  if (!tableId && !sessionId) return;
+
+  try {
+    if (tableId) {
+      const Table = TableModel(conn);
+      const table = await Table.findById(tableId);
+      if (table && table.s === TABLE_STATUS.occupied) {
+        table.s = TABLE_STATUS.cleaning;
+        table.as = undefined;
+        table.lsc = new Date();
+        await table.save();
+
+        broadcastEvent({
+          type: 'table:session_closed',
+          entityId: tableId,
+          payload: { status: 'cleaning', action: 'order_closed' },
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    if (sessionId) {
+      const Session = TableSessionModel(conn);
+      const session = await Session.findById(sessionId);
+      if (session && session.status !== 'closed') {
+        session.status = 'closed';
+        session.closedAt = new Date();
+        session.paidAt = session.paidAt ?? new Date();
+        session.events.push({
+          event: 'completed',
+          timestamp: new Date(),
+          details: 'Order closed — session closed',
+        });
+        await session.save();
+      }
+    }
+  } catch (e) {
+    // The order IS closed; that part is committed. Failing to free the table
+    // must not turn into a 500 that makes staff close it a second time — the
+    // Free Table control on the floor plan is the recovery path.
+    log('[Orders API][releaseTableForOrder] Failed to release table/session:', e);
+  }
+}
+
+/**
+ * The inverse of `releaseTableForOrder`, for `reopen`: put the table back into
+ * service and reopen its session.
+ *
+ * Never steals a table. Only one still sitting in `cleaning` with no active
+ * session — i.e. still in the state this order's own closure left it in — is
+ * reclaimed. If the next party has already been seated there, the order
+ * reopens without a table rather than evicting them.
+ */
+async function reclaimTableForOrder(
+  conn: Awaited<ReturnType<typeof mongooseConnect>>,
+  order: OrderDocLike & { sid?: { toString(): string } },
+): Promise<void> {
+  const tableId = order.tb?.ti?.toString();
+  const sessionId = order.sid?.toString();
+  if (!tableId && !sessionId) return;
+
+  try {
+    if (tableId) {
+      const Table = TableModel(conn);
+      const table = await Table.findById(tableId);
+      if (table && table.s === TABLE_STATUS.cleaning && !table.as) {
+        table.s = TABLE_STATUS.occupied;
+        table.lsc = new Date();
+        if (order.sid) table.as = order.sid as never;
+        await table.save();
+
+        broadcastEvent({
+          type: 'table:updated',
+          entityId: tableId,
+          payload: { status: 'occupied', action: 'order_reopened' },
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    if (sessionId) {
+      const Session = TableSessionModel(conn);
+      const session = await Session.findById(sessionId);
+      if (session && session.status === 'closed') {
+        session.status = 'active';
+        session.closedAt = undefined;
+        session.events.push({
+          event: 'reopened',
+          timestamp: new Date(),
+          details: 'Order reopened — session reopened',
+        });
+        await session.save();
+      }
+    }
+  } catch (e) {
+    // The order IS reopen; that part is committed. A table that could not be
+    // reclaimed is recoverable from the floor plan by seating it again.
+    log('[Orders API][reclaimTableForOrder] Failed to reclaim table/session:', e);
+  }
+}
 
 // Status transitions, which is how the kitchen moves a ticket from preparing
 // to ready. Wider than PUT and DELETE above on purpose: a chef may advance an
@@ -349,8 +487,45 @@ export async function PATCH(request: NextRequest) {
           }
           order.s = ORDER_STATUS.completed;
           order.coa = new Date();
-          // Inventory deduction happens after save (below)
+          // The table and session are released after save, below. This used to
+          // do nothing but flip the status, which stranded the table: a bill
+          // settled with `add_payment` and then closed with `complete` left
+          // T2 occupied with a completed order sitting on it, and the only
+          // control that could have freed it — the session panel's Complete
+          // Payment — routes through `complete_and_pay`, which refuses an
+          // order that is already completed. Dead end, mid-service.
+          // Inventory deduction also happens after save (below).
           break;
+
+        // ─── Reopen a closed order ────────────────────────────────────────
+        // Closing the wrong order, or closing one a second before the table
+        // orders another round, is ordinary. Before this the order was simply
+        // finished and the only way back was a new order and a confused bill.
+        //
+        // It reverts to `served` (or `out_for_delivery` for a delivery) rather
+        // than to `preparing`: the food has been handed over, and pretending
+        // otherwise would put a ticket back on the kitchen board.
+        case 'reopen': {
+          if (order.s !== ORDER_STATUS.completed) {
+            return NextResponse.json(
+              { error: 'Only a closed order can be reopened.' },
+              { status: 409 },
+            );
+          }
+
+          order.s = order.m === ORDER_MODE.delivery
+            ? ORDER_STATUS.out_for_delivery
+            : ORDER_STATUS.served;
+          order.coa = undefined;  // completedAt
+
+          // The table, session and stock are put back AFTER the save lands —
+          // see reclaimTableForOrder below. This callback runs inside
+          // withRetry, so anything done here can run two or three times on a
+          // version conflict, and can run at all for a save that ultimately
+          // fails. Reviving a table for an order that stayed closed is exactly
+          // the kind of half-applied state this endpoint exists to avoid.
+          break;
+        }
 
         // ─── Atomic Complete + Pay + Table transition ─────────────────────
         case 'complete_and_pay': {
@@ -710,6 +885,27 @@ export async function PATCH(request: NextRequest) {
       },
       timestamp: Date.now(),
     });
+
+    // Closing an order releases its table. `complete_and_pay` has always done
+    // this; the plain `complete` path did not, which is how a paid, completed
+    // order ended up sitting on a permanently occupied table.
+    //
+    // Both of these run AFTER withRetry so they happen exactly once, on a save
+    // that actually landed.
+    if (action === 'complete') {
+      await releaseTableForOrder(conn, result as unknown as OrderDocLike);
+    }
+
+    if (action === 'reopen') {
+      await reclaimTableForOrder(conn, result as unknown as OrderDocLike);
+
+      // Take back the stock `complete` deducted, or closing the reopened order
+      // deducts a second time and the counts drift. Idempotent.
+      const reverted = await revertInventoryForOrder(conn, id);
+      if (reverted.reverted > 0) {
+        log(`[Orders API][reopen] Reverted inventory for ${reverted.reverted} ingredient(s)`);
+      }
+    }
 
     // Deduct inventory when order is completed via simple 'complete' action
     if (action === 'complete') {

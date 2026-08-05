@@ -273,14 +273,55 @@ function SidebarButton({ icon, label, onClick, isLoading, variant = "default", i
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Theme by pathname (dark rail on the dark-themed pages, white elsewhere)
+// Theme by pathname
+//
+// The rail sits directly against the page, so it has to be the page's own
+// colour. When it is not, the seam reads as a rendering fault: a white rail
+// beside the black admin screen, or beside the near-black POS floor, looks like
+// something failed to load rather than like a design.
+//
+// One entry per route family, and the colour is the page's ACTUAL background —
+// checked against the page, not guessed. Add a route here when you add a page;
+// the default is the light rail because most report screens are light.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getSidebarBg(pathname: string): { bg: string; border: string } {
-  if (pathname === "/" || pathname.startsWith("/server-management") || pathname.startsWith("/peer-management")) {
-    return { bg: "bg-[#0B0C1A]", border: "border-white/10" };
-  }
-  return { bg: "bg-white", border: "border-gray-200" };
+interface SidebarTheme {
+  bg: string;
+  border: string;
+}
+
+const LIGHT_RAIL: SidebarTheme = { bg: "bg-white", border: "border-gray-200" };
+
+/** Longest matching prefix wins, so `/admin/inventory` picks up `/admin`. */
+const SIDEBAR_THEMES: { match: (p: string) => boolean; theme: SidebarTheme }[] = [
+  // Home — bg-slate-950.
+  { match: (p) => p === "/", theme: { bg: "bg-slate-950", border: "border-white/10" } },
+
+  // The four POS workspaces — bg-gray-950. /kitchen hides the rail entirely,
+  // but it is listed so the two never disagree if that changes.
+  {
+    match: (p) =>
+      p.startsWith("/dine-in") ||
+      p.startsWith("/hub") ||
+      p.startsWith("/takeaway") ||
+      p.startsWith("/delivery") ||
+      p.startsWith("/kitchen"),
+    theme: { bg: "bg-gray-950", border: "border-white/10" },
+  },
+
+  // Admin and the server screen — both bg-black.
+  {
+    match: (p) => p.startsWith("/admin") || p.startsWith("/server-management"),
+    theme: { bg: "bg-black", border: "border-white/10" },
+  },
+
+  // Peer management is a WHITE page. It used to get the dark rail, which was
+  // the same mismatch in the other direction.
+  { match: (p) => p.startsWith("/peer-management"), theme: LIGHT_RAIL },
+];
+
+function getSidebarBg(pathname: string): SidebarTheme {
+  return SIDEBAR_THEMES.find((t) => t.match(pathname))?.theme ?? LIGHT_RAIL;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

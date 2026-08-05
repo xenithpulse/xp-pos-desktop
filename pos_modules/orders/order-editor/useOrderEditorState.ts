@@ -844,6 +844,38 @@ export function useOrderEditorState(
     }
   };
 
+  /**
+   * Put a closed order back into service.
+   *
+   * Not optimistic: reopening moves a table, a session, the stock ledger and
+   * the day's takings, and a card that flips back to Served and then silently
+   * reverts is worse than a moment's wait. The server's answer is the truth.
+   */
+  const handleReopenOrder = useCallback(async () => {
+    if (!activeOrder?._id) return;
+    setIsPerformingAction(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/orders/${activeOrder._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reopen' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not reopen this order');
+      }
+      const updatedOrder: Order = await res.json();
+      setCachedOrder(updatedOrder);
+      onOrderUpdated?.(updatedOrder);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not reopen this order');
+      setTimeout(() => setActionError(null), 5000);
+    } finally {
+      setIsPerformingAction(false);
+    }
+  }, [activeOrder, onOrderUpdated]);
+
   const handleLifecycleAction = useCallback(
     async (action: string) => {
       if (!activeOrder?._id) return;
@@ -1434,6 +1466,7 @@ export function useOrderEditorState(
     handleLifecycleAction,
     handleCancelOrder,
     handleCompleteOrder,
+    handleReopenOrder,
     isPerformingAction,
     actionError,
     isCompletingOrder,

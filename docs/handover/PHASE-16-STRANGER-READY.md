@@ -367,6 +367,46 @@ And the one that actually matters:
 
 ---
 
+## The stranded table
+
+Reported during the phase, and the worst bug in it: **an order was closed and
+paid, and its table stayed occupied with nothing anywhere that could free it.**
+
+Three separate things had to line up, and they did:
+
+1. `complete` set the order's status and nothing else. `complete_and_pay` had
+   always released the table and closed the session in a transaction; the plain
+   close path never did. So the moment payment was taken with `add_payment`
+   (which is the path Phase 16 §2.2 makes normal) and the order closed with
+   **Close Order**, the table was orphaned.
+2. The one control that could have rescued it — the session panel's *Complete
+   Payment* — routes through `complete_and_pay`, which refuses an order that is
+   already completed. It could only ever have returned a 409.
+3. Tapping the table went straight to the order editor, which has no controls
+   for a closed order and cannot touch a table. The session panel was reachable
+   only through a small unlabelled info icon on the table badge.
+
+Fixed at the root: `releaseTableForOrder()` runs after any `complete`, so
+closing an order hands the table back however the bill was settled. It is
+idempotent and it never throws — the order is already closed, and a failure
+there must not push staff into closing it twice.
+
+For tables already stranded by the old build, the session panel now detects the
+state (`session` still open, order `completed`/`cancelled`) and replaces the
+payment button — which cannot succeed — with **Free Table N**. Tapping a table
+in that state opens the panel instead of dead-ending in the editor.
+
+And **Reopen Order** (`reopen`) exists now for the ordinary case of closing the
+wrong one: back to Served, table and session reclaimed, stock returned so
+closing again does not deduct twice. It will not take a table that has since
+been given to somebody else.
+
+Verified against a real MongoDB rather than by reading:
+`scratchpad/lifecycle-check.mjs` walks close → stranded → free → reopen → the
+re-seated-table case → releasing three times, all green.
+
+---
+
 ## What was built
 
 Every part above is implemented. Notes on the decisions that were not spelled

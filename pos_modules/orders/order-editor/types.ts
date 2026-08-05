@@ -113,6 +113,8 @@ export interface UseOrderEditorReturn {
   handleLifecycleAction: (action: string) => Promise<void>;
   handleCancelOrder: () => Promise<void>;
   handleCompleteOrder: (methodId?: string, paidAmount?: number) => Promise<void>;
+  /** Put a closed order back into service — reverts status, table, session and stock. */
+  handleReopenOrder: () => Promise<void>;
   isPerformingAction: boolean;
   actionError: string | null;
   isCompletingOrder: boolean;

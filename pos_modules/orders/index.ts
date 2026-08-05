@@ -2,6 +2,7 @@
 
 export { default as OrderManagerGrid } from './KDS/OrderManagerGrid';
 export { default as OrderManagerList } from './KDS/OrderManagerList';
+export { default as KdsOrderTray } from './KDS/KdsOrderTray';
 export { default as OrderCard } from './KDS/OrderCard';
 export { default as OrderDetailsPanel } from './OrderDetailsPanel';
 export { OrderEditor } from './order-editor';

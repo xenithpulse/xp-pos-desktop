@@ -64,7 +64,10 @@ export default function AdjustmentManager({
   onRemoveAdjustment,
   isUpdating,
 }: AdjustmentManagerProps) {
-  const [expanded, setExpanded] = useState(false);
+  // Open by default. A discount or a service charge is something a person is
+  // looking for when they open this panel; hiding it behind a disclosure meant
+  // they had to already know it was there.
+  const [expanded, setExpanded] = useState(true);
   const [presets, setPresets] = useState<BillAdjustmentPreset[]>([]);
   const presetsLoaded = useRef(false);
 

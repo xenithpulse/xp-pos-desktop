@@ -8,8 +8,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChefHat, RefreshCw, Wifi, WifiOff, Radio, Maximize, Minimize } from 'lucide-react';
-import { OrderManagerGrid } from '@/pos_modules/orders';
+import Link from 'next/link';
+import { ChefHat, RefreshCw, Wifi, WifiOff, Radio, Maximize, Minimize, ArrowLeft } from 'lucide-react';
+import { OrderManagerGrid, KdsOrderTray } from '@/pos_modules/orders';
 import type { Order } from '@/types/order.types';
 import { useRealtimeSync } from '@/lib/hooks/useRealtimeSync';
 import { useFullscreen } from '@/lib/hooks/useFullscreen';
@@ -39,6 +40,9 @@ function KitchenScreen() {
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [stationMap, setStationMap] = useState<Map<string, string>>(new Map());
   const [selectedStation, setSelectedStation] = useState<string>(ALL_STATIONS);
+  // The ticket currently open in the full-screen tray, if any. Opened only
+  // from a card's labelled Details control — never by tapping the card.
+  const [trayOrderId, setTrayOrderId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -112,6 +116,11 @@ function KitchenScreen() {
     );
   }, [orders, selectedStation, stationMap]);
 
+  const trayOrder = useMemo(
+    () => orders.find((o) => o._id === trayOrderId) ?? null,
+    [orders, trayOrderId],
+  );
+
   const handleStatusChange = useCallback(async (orderId: string, action: string) => {
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -146,6 +155,17 @@ function KitchenScreen() {
     <div className="h-screen flex flex-col bg-gray-950">
       <header className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-900 border-b border-gray-800">
         <div className="flex items-center gap-2">
+          {/* The way out. This screen hides the nav rail on purpose — the point
+              is a full-width ticket board — which also left it with no exit but
+              the browser's own Back, and these tills run full-screen with no
+              browser chrome at all. */}
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm font-medium text-gray-300 transition-colors hover:border-gray-500 hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Back</span>
+          </Link>
           <ChefHat size={20} className="text-cyan-400" />
           <h1 className="text-lg font-semibold text-white">Kitchen Display</h1>
         </div>
@@ -170,10 +190,10 @@ function KitchenScreen() {
 
           <button
             onClick={fetchOrders}
-            className="p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-            title="Refresh"
+            className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-xs font-medium"
           >
             <RefreshCw size={16} />
+            <span className="hidden md:inline">Refresh</span>
           </button>
 
           {/* Full screen. The point of this screen is tickets read from across
@@ -182,11 +202,11 @@ function KitchenScreen() {
           {supported && (
             <button
               onClick={() => void toggleFullscreen()}
-              className="p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
-              title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-xs font-medium"
               aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
             >
               {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+              <span className="hidden md:inline">{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
             </button>
           )}
         </div>
@@ -196,16 +216,25 @@ function KitchenScreen() {
         {/* surface="kds": the card body is inert here and the ladder stops at
             Served / Out — the kitchen hands food over, the till closes and
             settles the bill. See pos_modules/orders/statusLadder.ts.
-            No onViewDetails: there is no panel on this screen, and a sliding
-            panel over a ticket board is obstruction. The KDS card shows every
-            line, modifier and note instead. */}
+            Details opens the full-screen tray rather than a panel sliding over
+            the board, and only from the card's own labelled control. */}
         <OrderManagerGrid
           orders={filteredOrders}
           onStatusChange={handleStatusChange}
+          onViewDetails={(order) => setTrayOrderId(order._id)}
           isLoading={isLoadingOrders}
           surface="kds"
         />
       </main>
+
+      {/* Read the ticket from the pass, then advance it — one button, the same
+          rung the card offers. Resolved from `orders` by id so a realtime
+          update while the tray is open is reflected rather than frozen. */}
+      <KdsOrderTray
+        order={trayOrder}
+        onClose={() => setTrayOrderId(null)}
+        onStatusChange={handleStatusChange}
+      />
     </div>
   );
 }

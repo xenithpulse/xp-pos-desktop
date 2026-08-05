@@ -16,6 +16,7 @@ import {
   Building2,
   Wallet,
   Receipt,
+  RotateCcw,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
@@ -56,6 +57,9 @@ interface OrderFooterProps {
   canPay: boolean;
   onOpenPayment: () => void;
 
+  /** Put a closed order back into service. Omit to hide the control. */
+  onReopenOrder?: () => Promise<void>;
+
   // Error management
   clearErrors: () => void;
 
@@ -86,6 +90,7 @@ export default function OrderFooter({
   completeError,
   canPay,
   onOpenPayment,
+  onReopenOrder,
   clearErrors,
   onSwitchToCatalog,
 }: OrderFooterProps) {
@@ -93,10 +98,14 @@ export default function OrderFooter({
   const [showPaymentSelect, setShowPaymentSelect] = useState(false);
   // Optional tendered/paid amount typed at complete-time (record-keeping).
   const [tendered, setTendered] = useState('');
-  // Collapsible lifecycle actions
-  const [showLifecycleActions, setShowLifecycleActions] = useState(false);
+  // Actions start OPEN. Collapsed-by-default hid the only controls on the
+  // panel behind a 10px grey word, which on a busy till reads as "there is
+  // nothing you can do here".
+  const [showLifecycleActions, setShowLifecycleActions] = useState(true);
+  const [confirmReopen, setConfirmReopen] = useState(false);
 
   const due = activeOrder?.amountDue ?? 0;
+  const isClosed = activeOrder?.status === 'completed';
   const isFullyPaid = !!activeOrder && due <= 0 && (activeOrder.amountPaid ?? 0) > 0;
   const paymentCount = activeOrder?.transactions?.length ?? 0;
   const tenderedNum = parseFloat(tendered);
@@ -268,12 +277,58 @@ export default function OrderFooter({
         </button>
       )}
 
-      {/* ── Lifecycle Actions (Collapsible) ─────────────────────────── */}
+      {/* ── Reopen a closed order ─────────────────────────────────────────
+          A closed order used to be the end of the road: no controls, and if it
+          still held a table, no way to free it either. Reopening puts it back
+          to Served, hands the table back, and returns the stock `complete`
+          deducted so closing it again does not deduct twice. */}
+      {isClosed && onReopenOrder && (
+        <div className="space-y-1.5">
+          {confirmReopen ? (
+            <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
+              <p className="text-[11px] text-amber-200 leading-snug">
+                Reopen order #{String(activeOrder?.orderNumber ?? '').split('-').pop()}? It goes
+                back to Served and can be added to and closed again. Payments already taken stay
+                on it.
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={async () => {
+                    setConfirmReopen(false);
+                    await onReopenOrder();
+                  }}
+                  disabled={isPerformingAction}
+                  className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  Yes, Reopen
+                </button>
+                <button
+                  onClick={() => setConfirmReopen(false)}
+                  className="flex-1 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-semibold transition-colors"
+                >
+                  Leave Closed
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmReopen(true)}
+              disabled={isPerformingAction}
+              className="w-full flex items-center justify-center gap-2 py-2 md:py-2.5 rounded-lg font-semibold text-xs md:text-sm bg-amber-600/20 border border-amber-500/40 text-amber-300 hover:bg-amber-600/30 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw size={15} />
+              Reopen Order
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Lifecycle Actions ────────────────────────────────────────── */}
       {(lifecycleActions.length > 0 || canCancel) && (
         <div className="space-y-1">
           <button
             onClick={() => setShowLifecycleActions(!showLifecycleActions)}
-            className="w-full flex items-center justify-between px-2 py-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+            className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-gray-400 hover:text-gray-200 transition-colors"
           >
             <span>Actions</span>
             {showLifecycleActions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}

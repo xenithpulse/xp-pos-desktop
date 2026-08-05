@@ -37,7 +37,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Users, DollarSign, Clock, Bike, ShoppingBag } from 'lucide-react';
+import { LayoutGrid, Users, DollarSign, Clock, Bike, ShoppingBag, History } from 'lucide-react';
 import { hasPermission } from '@/types/admin.types';
 import { usePOSStore } from '@/stores/posStore';
 import GlobalContextBar, { ContextBarSlot, StatBadge, SearchInput, FilterDropdown } from '@/pos_modules/context-bar';
@@ -257,6 +257,13 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
   const [isDeliveryLoading, setIsDeliveryLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderViewMode, setOrderViewMode] = useState<'grid' | 'list'>('grid');
+
+  /**
+   * Pinned workspaces only: whether /takeaway and /delivery are showing their
+   * live queue or their order history. They hide the tab strip by design, so
+   * without this switch neither had any route to past orders at all.
+   */
+  const [workspaceView, setWorkspaceView] = useState<'queue' | 'history'>('queue');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [orderPaymentFilter, setOrderPaymentFilter] = useState('all');
 
@@ -865,10 +872,22 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
       //   Available / Reserved table:
       //     - showTableSessionPanel=true  → Open TableSessionPanel to seat guests
       //     - showTableSessionPanel=false → Auto-initiate session with default covers
-      if (session?.orderId) {
+      // A table still held by a finished order goes to the session panel, not
+      // the order editor. The editor has nothing to offer a closed order and no
+      // way to hand the table back, so tapping the table used to land staff on
+      // a dead end with the table stuck for the rest of service. The panel is
+      // where the Free Table control lives.
+      const orderStatus =
+        typeof order === 'object' ? (order as { status?: string })?.status : undefined;
+      const orderIsFinished = !!orderStatus && ['completed', 'cancelled'].includes(orderStatus);
+
+      if (session?.orderId && !orderIsFinished) {
         // Atomic switch clears stale cart & replaces context
         switchOrderContext(newContext);
         setActiveTab('order-editor');
+      } else if (session?.orderId && orderIsFinished) {
+        setFocusedContext(newContext);
+        setSelectedTable(table);
       } else if (!hub.showTableSessionPanel && canSeatTable(table, new Date(), reservationPolicy)) {
         // Skip the panel entirely — start session with default covers.
         // canSeatTable() is false inside a reservation hold, so a booked table
@@ -1586,6 +1605,30 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
             </div>
           </div>
 
+          {/* Queue / History. A pinned workspace hides the tab strip by
+              design, which also hid order history from the two people most
+              likely to be asked "did that 2pm collection go out?". Scoped to
+              this workspace's own order type. */}
+          <div className="ml-auto flex shrink-0 rounded-lg bg-white/5 p-0.5">
+            {([
+              { id: 'queue' as const, label: 'Queue', icon: <ShoppingBag size={13} /> },
+              { id: 'history' as const, label: 'History', icon: <History size={13} /> },
+            ]).map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setWorkspaceView(v.id)}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  workspaceView === v.id
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                {v.icon}
+                {v.label}
+              </button>
+            ))}
+          </div>
+
           {hasPermission(session?.user?.role, session?.user?.permissions, 'manage_orders') && (
             <Link
               href="/dine-in"
@@ -1707,7 +1750,7 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
             )}
 
             {/* Takeaway Tab */}
-            {activeTab === 'takeaway' && (
+            {activeTab === 'takeaway' && workspaceView === 'queue' && (
               <OrderEditor
                 ref={orderEditorRef}
                 order={focusedContext.order}
@@ -1735,7 +1778,7 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
             )}
 
             {/* Delivery Tab */}
-            {activeTab === 'delivery' && (
+            {activeTab === 'delivery' && workspaceView === 'queue' && (
               <OrderEditor
                 ref={orderEditorRef}
                 order={focusedContext.order}
@@ -1761,6 +1804,25 @@ export default function ManagementHubPage({ workspace }: ManagementHubProps = {}
                 }}
               />
             )}
+
+            {/* Pinned-workspace history. Same list component as the Dine-In
+                History tab, scoped to this workspace's order type so a counter
+                person sees only counter orders. */}
+            {(activeTab === 'takeaway' || activeTab === 'delivery') &&
+              workspaceView === 'history' && (
+                <OrderList
+                  mode={activeTab === 'delivery' ? 'delivery' : 'takeaway'}
+                  refreshSignal={orderEventTick}
+                  // This workspace owns navigation: opening an order returns to
+                  // the queue rather than jumping to the dine-in editor tab,
+                  // which a pinned route never renders.
+                  openInTab={null}
+                  onOpenInEditor={(order) => {
+                    setWorkspaceView('queue');
+                    switchOrderContext({ orderId: order._id, order });
+                  }}
+                />
+              )}
 
             {/* Order List Tab */}
             {activeTab === 'order-list' && (
