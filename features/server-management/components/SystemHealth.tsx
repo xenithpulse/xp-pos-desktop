@@ -4,18 +4,27 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { IServerConfig } from "@/models/schemas/server-config.schema";
+
+/** The shape POST /api/admin/server-config/health returns. */
+interface HealthCheckResult {
+  checks: { database: boolean; diskSpace: boolean; memory: boolean; ports: boolean };
+  database: { status: boolean; latency: number };
+  diskUsage: { percent: number; threshold: number };
+  memory: { available: number };
+}
 
 export default function SystemHealth({
   config,
   onRefresh,
 }: {
   config: IServerConfig | null;
+  /** Called after a check so the parent can re-read the persisted status. */
   onRefresh: () => void;
 }) {
   const [checking, setChecking] = useState(false);
-  const [healthData, setHealthData] = useState<any>(null);
+  const [healthData, setHealthData] = useState<HealthCheckResult | null>(null);
 
   const handleHealthCheck = async () => {
     setChecking(true);
@@ -24,8 +33,13 @@ export default function SystemHealth({
         method: "POST",
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as HealthCheckResult;
         setHealthData(data);
+        // The check PERSISTS systemStatus and lastHealthCheck, so the parent's
+        // copy of the config is stale the moment this returns. Without this the
+        // Overview tile keeps showing the old status until the 30s poll comes
+        // round - i.e. you fix a problem, press Run, and it still says warning.
+        onRefresh();
       }
     } finally {
       setChecking(false);

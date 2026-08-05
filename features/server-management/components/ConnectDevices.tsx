@@ -7,16 +7,36 @@
 // the IP comes from the router by DHCP. So this screen never hardcodes it and
 // never trusts a stored copy - it asks the server, and it re-asks on a timer so
 // a card left open on a back-office monitor does not quietly go stale.
+//
+// ── TWO AUDIENCES, TWO ADDRESSES ─────────────────────────────────────────────
+// Conflating these is what made this screen confusing, so it is now explicit:
+//
+//   THIS COMPUTER      http://pos.xenithpulse.local:<port>. Fixed, branded, and
+//                      backed by a hosts entry (lib/net/localName.ts) so it
+//                      resolves here even with the network unplugged. It is on
+//                      the desktop shortcut, so the owner never has to find out
+//                      what their own IP is.
+//
+//   EVERY OTHER DEVICE The QR code, carrying the numeric address. On a site
+//                      with a router per floor this is the ONLY form that
+//                      reaches an upstairs tablet: mDNS has TTL 1 and dies at
+//                      the first router, whereas the number routes fine. And a
+//                      scanned address is not typed, so its being a number
+//                      costs the waiter nothing.
+//
+// The address on the QR is re-read every 30s, so it follows a DHCP change
+// without anyone reloading the page.
 
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import qrcode from "qrcode-generator";
+import QrCode from "@/components/ui/QrCode";
 import {
   AlertTriangle,
   Check,
   Copy,
+  Globe,
   Loader2,
   Lock,
   Printer,
@@ -31,6 +51,8 @@ interface ConnectInfo {
   port: number;
   lanIps: string[];
   lanUrls: string[];
+  localNameUrl: string;
+  localNameInstalled: boolean;
   mdnsUrl: string | null;
   hostnameUrl: string;
   hostname: string;
@@ -43,40 +65,58 @@ interface ConnectInfo {
 // reloading the page.
 const REFRESH_MS = 30_000;
 
+/** How long to wait for an address to answer before calling it unreachable. */
+const PROBE_TIMEOUT_MS = 6_000;
+
+type ProbeState = "idle" | "checking" | "ok" | "blocked";
+
 /**
- * A QR code as inline SVG.
+ * Test an address from THIS device.
  *
- * SVG rather than a canvas or a data URL because it prints crisply at any size,
- * and printing this is a first-class use: the card goes on the wall by the pass.
- * Error correction is set to M, which tolerates a smudged or partly covered
- * print without inflating the module count enough to hurt scanning.
+ * Used on the fixed name, because whether a name resolves is a property of the
+ * device doing the resolving and cannot be answered from the server. On the
+ * server box the hosts entry makes it certain; on a tablet it depends on mDNS
+ * support and on whether a router sits in between - so the screen asks rather
+ * than claims.
+ *
+ * Cross-origin on purpose - see app/api/system/ping/route.ts.
  */
-function QrSvg({ text, size = 232 }: { text: string; size?: number }) {
-  const qr = qrcode(0, "M");
-  qr.addData(text);
-  qr.make();
+function useNameProbe(url: string | null): ProbeState {
+  // The result is stored WITH the address it belongs to, and the state below is
+  // derived from that rather than assigned. Two things fall out of it for free:
+  // nothing calls setState synchronously during the effect, and a result that
+  // arrives late for an address we are no longer showing is ignored, because it
+  // no longer matches - which is what would otherwise report the old address's
+  // verdict against the new one.
+  const [result, setResult] = useState<{ url: string; ok: boolean } | null>(null);
 
-  const count = qr.getModuleCount();
-  const cells: string[] = [];
-  for (let r = 0; r < count; r++) {
-    for (let c = 0; c < count; c++) {
-      if (qr.isDark(r, c)) cells.push(`M${c},${r}h1v1h-1z`);
-    }
-  }
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
 
-  return (
-    <svg
-      viewBox={`0 0 ${count} ${count}`}
-      width={size}
-      height={size}
-      shapeRendering="crispEdges"
-      role="img"
-      aria-label={`QR code for ${text}`}
-      className="rounded-lg bg-white p-3"
-    >
-      <path d={cells.join("")} fill="#000000" />
-    </svg>
-  );
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+
+    fetch(`${url}/api/system/ping`, { signal: controller.signal, cache: "no-store" })
+      .then((res) => {
+        if (!cancelled) setResult({ url, ok: res.ok });
+      })
+      .catch(() => {
+        // Abort fires this too, which is why `cancelled` guards it.
+        if (!cancelled) setResult({ url, ok: false });
+      })
+      .finally(() => clearTimeout(timer));
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [url]);
+
+  if (!url) return "idle";
+  if (result?.url === url) return result.ok ? "ok" : "blocked";
+  return "checking";
 }
 
 function CopyButton({ value }: { value: string }) {
@@ -128,6 +168,8 @@ export default function ConnectDevices() {
     return () => clearInterval(t);
   }, [load]);
 
+  const probe = useNameProbe(info?.localNameUrl ?? null);
+
   if (loading) {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-6 text-sm text-neutral-400">
@@ -160,7 +202,7 @@ export default function ConnectDevices() {
             </h2>
             <p className="mt-1 text-sm text-neutral-400 print:text-neutral-700">
               Scan this with a phone or tablet camera, or type the address into a browser.
-              The device must be on the same network as this computer.
+              The device must be on the restaurant&apos;s network.
             </p>
           </div>
           <div className="flex gap-2 print:hidden">
@@ -186,17 +228,21 @@ export default function ConnectDevices() {
 
         {info.onNetwork ? (
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-            <QrSvg text={info.primaryUrl} />
+            <QrCode text={info.primaryUrl} />
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-neutral-500">
-                Address
+                Scan, or type
               </p>
               <p className="mt-1 break-all font-mono text-2xl font-bold text-emerald-400 print:text-black">
                 {info.primaryUrl}
               </p>
               <p className="mt-3 text-xs leading-relaxed text-neutral-400 print:text-neutral-700">
-                Leave this computer switched on and connected. The POS starts by itself
-                when it is powered on &mdash; nobody needs to log in to Windows.
+                Works on every device on the restaurant&apos;s network, including floors that
+                have their own router. Scanning it means nobody has to type it.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-neutral-500 print:text-neutral-700">
+                This address can change if your router restarts — this screen always shows the
+                current one. To stop it changing, see below.
               </p>
             </div>
           </div>
@@ -215,6 +261,9 @@ export default function ConnectDevices() {
         )}
       </div>
 
+      {/* ── The fixed name, for this computer ─────────────────────────────── */}
+      <LocalNameCard info={info} probe={probe} />
+
       {/* ── Every address that works ──────────────────────────────────────── */}
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6 print:hidden">
         <h3 className="mb-1 text-lg font-bold">Other addresses that work</h3>
@@ -223,14 +272,6 @@ export default function ConnectDevices() {
         </p>
 
         <div className="space-y-2">
-          {info.mdnsUrl && (
-            <AddressRow
-              url={info.mdnsUrl}
-              label="Name — does not change"
-              hint="Survives a router restart, because it is a name rather than an address. Works on iPhone, iPad, Windows 11 and newer Android; not on older Android."
-              highlight
-            />
-          )}
           {info.lanUrls.map((url, i) => (
             <AddressRow
               key={url}
@@ -238,15 +279,20 @@ export default function ConnectDevices() {
               label={i === 0 ? "Network address" : "Also on this network"}
               hint={
                 i === 0
-                  ? "The one on the QR code. It can change if your router restarts."
+                  ? "Always works on this network, but it can change if your router restarts."
                   : "A second network adapter on this computer."
               }
             />
           ))}
           <AddressRow
+            url={info.localNameUrl}
+            label="Fixed name — this computer, and nearby devices"
+            hint="Always works on this computer. On phones and tablets it works only on the same part of the network — it does not cross a floor that has its own router."
+          />
+          <AddressRow
             url={info.hostnameUrl}
             label="Computer name"
-            hint="Works from Windows computers on the same network."
+            hint="Works from Windows computers on the same part of the network."
           />
           <AddressRow
             url={info.localUrl}
@@ -263,7 +309,80 @@ export default function ConnectDevices() {
 }
 
 /**
+ * The fixed name, and what it is honestly good for.
+ *
+ * The wording here matters more than it looks. This name is guaranteed on the
+ * server box and merely likely anywhere else, and a screen that blurs those two
+ * produces exactly the support call it was meant to prevent - somebody writes
+ * it on a card, the upstairs tablets cannot open it, and nobody knows why. So
+ * the panel states the guarantee and the limit in the same breath, and points
+ * at the QR code for everything the name cannot serve.
+ */
+function LocalNameCard({ info, probe }: { info: ConnectInfo; probe: ProbeState }) {
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-6 print:hidden">
+      <h3 className="mb-1 flex items-center gap-2 text-lg font-bold">
+        <Globe size={18} className="text-emerald-400" />
+        On this computer
+      </h3>
+      <p className="text-sm text-neutral-400">
+        The till itself has a fixed address that never changes, whatever the router does.
+        It is on the desktop shortcut, so nobody has to look up an IP.
+      </p>
+
+      <p className="mt-3 break-all font-mono text-xl font-bold text-emerald-400">
+        {info.localNameUrl}
+      </p>
+
+      {probe === "ok" && (
+        <p className="mt-3 flex items-center gap-2 text-sm text-emerald-300">
+          <Check size={15} className="shrink-0" />
+          Confirmed working on the device you are using now.
+        </p>
+      )}
+
+      {probe === "blocked" && (
+        <p className="mt-3 flex items-start gap-2 text-sm text-neutral-400">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" />
+          <span>
+            This name did not open on the device you are using now. That is expected on a
+            phone or tablet — especially one on a floor with its own router. Use the QR code
+            above on those devices.
+          </span>
+        </p>
+      )}
+
+      {!info.localNameInstalled && (
+        <p className="mt-3 flex items-start gap-2 text-sm text-neutral-400">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" />
+          <span>
+            The entry that makes this name work on this computer is missing, and the POS
+            could not restore it. Re-run{" "}
+            <span className="font-mono text-neutral-200">provision.ps1</span> as
+            Administrator. Until then use{" "}
+            <span className="font-mono text-neutral-200">{info.localUrl}</span> here.
+          </span>
+        </p>
+      )}
+
+      <p className="mt-4 border-t border-neutral-800 pt-4 text-xs leading-relaxed text-neutral-500">
+        Staff phones and tablets should use the QR code above instead. Names like this one
+        are found by asking the local network directly, which does not reach past a router —
+        so on a building with a router per floor they work near this computer and not
+        upstairs. The address in the QR code has no such limit.
+      </p>
+    </div>
+  );
+}
+
+
+/**
  * Pin the address so it stops moving.
+ *
+ * Still worth doing even with a permanent name in place: the name is only ever
+ * as current as the last registration, so a box whose IP never moves has one
+ * fewer moving part - and it is the fallback that keeps working when the site
+ * has no internet at all.
  *
  * This reconfigures the network adapter that the person clicking it is very
  * probably connected THROUGH, so the UI is deliberately explicit about what

@@ -63,6 +63,20 @@ export async function register() {
     console.error('[updates] agent failed to start; the POS continues without it:', err);
   }
 
+  // The fixed name for THIS machine: http://pos.xenithpulse.local:<port>.
+  //
+  // A hosts-file entry, repaired on every boot rather than only at install, so
+  // the address on the desktop shortcut keeps working after a Windows repair,
+  // a hosts-file cleanup by an antivirus product, or a reinstall that skipped
+  // provisioning. See lib/net/localName.ts. Costs one file read when it is
+  // already correct, and writes nothing in that case.
+  try {
+    const { ensureLocalName } = await import('./lib/net/localName');
+    await ensureLocalName();
+  } catch (err) {
+    console.error('[localname] could not be applied; the POS continues without it:', err);
+  }
+
   // Entitlements: whether this site's XenithPulse subscription (WhatsApp
   // confirmations, billed via Stripe on xenithpulse.com) is currently active.
   // Same posture as the update agent: a no-op when POS_ENTITLEMENTS_URL is

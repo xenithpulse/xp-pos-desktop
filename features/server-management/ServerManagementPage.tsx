@@ -1,74 +1,196 @@
 // features/server-management/ServerManagementPage.tsx
+//
+// The dashboard an owner opens when something needs doing to the appliance
+// itself, rather than to the restaurant.
+//
+// ── WHY A SIDEBAR, AND WHY THE MODE TOGGLE IS GONE ───────────────────────────
+// This screen used to have two navigation systems at once: a Simple/Advanced
+// toggle, and a row of eleven scrolling tabs inside Advanced. That meant the
+// answer to "where is the thing I need" depended on a mode the user had to know
+// they were in, and the tab strip - the only route to most of the product - was
+// horizontally scrolled on the screen sizes these boxes actually have.
+//
+// One sidebar replaces both. The grouping does the job the mode toggle was
+// trying to do, without asking anyone to choose a mode first: everyday work is
+// at the top, the things you touch once a year are under "Advanced", and
+// everything is one click away and visible at a glance.
+//
+// ── WHY THE HASH ─────────────────────────────────────────────────────────────
+// The section lives in window.location.hash, which buys three things that
+// component state alone does not:
+//
+//   - Back and Close behave. On a till, "back" is a physical reflex; losing the
+//     section on every press made this feel broken.
+//   - A section can be linked. Support can say "open /server-management#licence"
+//     instead of describing a path through the UI over the phone.
+//   - A reload keeps you where you were, which matters on the one screen people
+//     reload when something is wrong.
+//
+// The hash is deliberately NOT read during render. Doing so would produce
+// server HTML that disagrees with the client on first paint - see the note on
+// the effect below.
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  SettingsIcon,
-  Router,
   Activity,
-  HardDrive,
   AlertTriangle,
   CheckCircle2,
+  Database,
+  FlaskConical,
+  Gauge,
+  HardDrive,
   Home,
+  KeyRound,
+  LayoutDashboard,
+  Menu,
+  RefreshCw,
+  Smartphone,
+  Stethoscope,
+  X,
 } from "lucide-react";
 import { IServerConfig } from "@/models/schemas/server-config.schema";
-import RouterManagement from "./components/RouterManagement";
-import ConnectionsManager from "./components/ConnectionsManager";
 import BackupManager from "./components/BackupManager";
 import SystemHealth from "./components/SystemHealth";
-import NetworkSettings from "./components/NetworkSettings";
 import UpdateManager from "./components/UpdateManager";
 import Diagnostics from "./components/Diagnostics";
 import LicenseManager from "./components/LicenseManager";
 import ConnectDevices from "./components/ConnectDevices";
 import DemoDataManager from "./components/DemoDataManager";
 
-type TabType =
+// ── Three tabs were removed in Phase 15, and it is worth recording why ───────
+//
+//   WiFi Router        A MAC "whitelist" that nothing enforced. No code in this
+//                      repo has ever talked to a router; the addresses were
+//                      written to MongoDB and read back by the same screen. It
+//                      presented itself as access control while providing none,
+//                      which is worse than not shipping it. Real device access
+//                      control is POS_ALLOWED_CIDRS, enforced by Caddy - see
+//                      installer/config/Caddyfile.http.
+//
+//   Network Settings   Rate limit, max connections, session timeout and a
+//                      never-wired "DNS integration" field. Duplicated .env and
+//                      the Caddyfile, which are what actually take effect.
+//
+//   Active Connections A per-device session list that cannot be per-device on a
+//                      multi-floor site: every device behind an upstairs router
+//                      arrives NAT'd as that router's single WAN address, so
+//                      the list showed one IP for a whole floor.
+//
+// The MongoDB fields behind them are deliberately LEFT IN
+// models/schemas/server-config.schema.ts. They are inert, they cost nothing, and
+// dropping columns from an appliance database that upgrades in place - on sites
+// we cannot inspect first - buys tidiness at the price of a migration that can
+// fail in a restaurant.
+
+type SectionId =
   | "overview"
   | "connect"
-  | "sample-data"
-  | "router"
-  | "connections"
   | "backups"
-  | "network"
-  | "health"
   | "updates"
   | "licence"
-  | "diagnostics";
+  | "health"
+  | "diagnostics"
+  | "sample-data";
 
-type ViewMode = "simple" | "advanced";
+interface SectionDef {
+  id: SectionId;
+  label: string;
+  /** Shown under the label in the sidebar. One short line, plain language. */
+  blurb: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}
+
+/**
+ * The sidebar, in two groups.
+ *
+ * EVERYDAY is what an owner opens on purpose. ADVANCED is what they open once,
+ * or because support asked them to - it is not hidden, because hiding the
+ * licence screen from the person whose trial is expiring is how you generate
+ * the support call, but it is visually subordinate so it does not compete.
+ */
+const EVERYDAY: SectionDef[] = [
+  { id: "overview", label: "Overview", blurb: "Status at a glance", icon: LayoutDashboard },
+  { id: "connect", label: "Connect Devices", blurb: "QR code and addresses", icon: Smartphone },
+  { id: "backups", label: "Backups", blurb: "Your data, kept safe", icon: HardDrive },
+  { id: "updates", label: "Updates", blurb: "Install new versions", icon: RefreshCw },
+  { id: "licence", label: "Licence", blurb: "Subscription and activation", icon: KeyRound },
+];
+
+const ADVANCED: SectionDef[] = [
+  { id: "health", label: "System Health", blurb: "Disk, memory, database", icon: Gauge },
+  { id: "diagnostics", label: "Diagnostics", blurb: "Services, ports and logs", icon: Stethoscope },
+  { id: "sample-data", label: "Sample Data", blurb: "Go live for real", icon: FlaskConical },
+];
+
+const ALL_SECTIONS = [...EVERYDAY, ...ADVANCED];
+const DEFAULT_SECTION: SectionId = "overview";
+
+function isSectionId(value: string): value is SectionId {
+  return ALL_SECTIONS.some((s) => s.id === value);
+}
 
 export default function ServerManagementPage() {
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [section, setSection] = useState<SectionId>(DEFAULT_SECTION);
   const [config, setConfig] = useState<IServerConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>("simple");
   const [backupBusy, setBackupBusy] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
-  // Remember the last chosen view so the owner isn't dropped into "Advanced".
+  // The hash is read HERE and not during render. Reading window during render
+  // makes the server-rendered markup disagree with the first client paint,
+  // which React resolves by throwing away the tree - a visible flash on a screen
+  // that is often opened in a hurry. Starting from the default and correcting on
+  // mount costs one extra paint and is always consistent.
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem("sm-mode") === "advanced") {
-      setMode("advanced");
+    const sync = () => {
+      const raw = window.location.hash.replace(/^#/, "");
+      setSection(isSectionId(raw) ? raw : DEFAULT_SECTION);
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+
+  // Navigation writes the hash and lets the listener above set the state, so
+  // there is exactly one path from "a section changed" to "the UI updated" -
+  // whether the change came from a click, the back button, or a pasted link.
+  const go = useCallback((id: SectionId) => {
+    window.location.hash = id;
+    setNavOpen(false);
+  }, []);
+
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/server-config");
+      if (!res.ok) throw new Error("Failed to fetch config");
+      setConfig(await res.json());
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const switchMode = (next: ViewMode) => {
-    setMode(next);
-    if (typeof window !== "undefined") localStorage.setItem("sm-mode", next);
-  };
+  useEffect(() => {
+    void fetchConfig();
+    const interval = setInterval(() => void fetchConfig(), 30000);
+    return () => clearInterval(interval);
+  }, [fetchConfig]);
 
   const runBackup = async () => {
     setBackupBusy(true);
     try {
       await fetch("/api/admin/server-config/backups/run", { method: "POST" });
-      fetchConfig();
-      setTimeout(fetchConfig, 8000);
+      void fetchConfig();
+      setTimeout(() => void fetchConfig(), 8000);
       setTimeout(() => {
-        fetchConfig();
+        void fetchConfig();
         setBackupBusy(false);
       }, 40000);
     } catch {
@@ -76,225 +198,223 @@ export default function ServerManagementPage() {
     }
   };
 
-  useEffect(() => {
-    fetchConfig();
-    const interval = setInterval(fetchConfig, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+  if (loading) return <LoadingSkeleton />;
 
-  const fetchConfig = async () => {
-    try {
-      const res = await fetch("/api/admin/server-config");
-      if (!res.ok) throw new Error("Failed to fetch config");
-      const data = await res.json();
-      setConfig(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <LoadingSkeleton />;
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black p-4 text-white sm:p-6 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={20} className="text-red-500" />
-              <span>{error}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const active = ALL_SECTIONS.find((s) => s.id === section) ?? EVERYDAY[0];
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <div className="border-b border-neutral-800">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-          <Link
-            href="/"
-            className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-700 hover:text-white"
-          >
-            <Home size={15} />
-            Back to Home
-          </Link>
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <SettingsIcon size={32} className="text-blue-500" />
-              <div>
-                <h1 className="text-2xl font-bold sm:text-3xl">Server Management</h1>
-                <p className="text-neutral-400 text-sm">
-                  Manage WiFi, connections, backups, and system settings
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center rounded-lg border border-neutral-800 overflow-hidden text-sm shrink-0">
-              <button
-                onClick={() => switchMode("simple")}
-                className={`px-4 py-2 font-medium transition-colors ${
-                  mode === "simple"
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-900 text-neutral-400 hover:text-white"
-                }`}
-              >
-                Simple
-              </button>
-              <button
-                onClick={() => switchMode("advanced")}
-                className={`px-4 py-2 font-medium transition-colors ${
-                  mode === "advanced"
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-900 text-neutral-400 hover:text-white"
-                }`}
-              >
-                Advanced
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Status (advanced only — Simple mode has its own layout) */}
-          {mode === "advanced" && (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <StatusCard
-              label="System Status"
-              value={config?.systemStatus || "unknown"}
-              icon={
-                config?.systemStatus === "healthy" ? (
-                  <CheckCircle2 size={20} className="text-green-500" />
-                ) : (
-                  <AlertTriangle size={20} className="text-yellow-500" />
-                )
-              }
-            />
-            <StatusCard
-              label="Active Connections"
-              value={String(config?.activeConnections.filter(c => c.isActive).length || 0)}
-              icon={<Activity size={20} className="text-blue-500" />}
-            />
-            <StatusCard
-              label="Whitelisted Devices"
-              value={String(config?.routerMacWhitelist.length || 0)}
-              icon={<Router size={20} className="text-purple-500" />}
-            />
-            <StatusCard
-              label="Backup Paths"
-              value={String(config?.backupPaths.length || 0)}
-              icon={<HardDrive size={20} className="text-orange-500" />}
-            />
-          </div>
-          )}
-        </div>
-      </div>
-
-      {mode === "simple" ? (
-        <SimpleView
-          config={config}
-          onRunBackup={runBackup}
-          backupBusy={backupBusy}
-          onOpenAdvanced={() => switchMode("advanced")}
-          onOpenLicence={() => {
-            setActiveTab("licence");
-            switchMode("advanced");
-          }}
+      <div className="mx-auto flex min-h-screen w-full max-w-[1400px]">
+        {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+        <Sidebar
+          section={section}
+          onGo={go}
+          open={navOpen}
+          onClose={() => setNavOpen(false)}
+          licenceNeedsAttention={config?.systemStatus !== "healthy"}
         />
-      ) : (
-      <>
-      {/* Tab Navigation */}
-      <div className="border-b border-neutral-800">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex gap-1 overflow-x-auto">
-            {[
-              { id: "overview" as const, label: "Overview" },
-              // Immediately after Overview on purpose: "what address do the
-              // tablets use" is the most common question this dashboard is
-              // opened to answer, and it used to have no answer here at all.
-              { id: "connect" as const, label: "Connect Devices" },
-              { id: "sample-data" as const, label: "Sample Data" },
-              { id: "router" as const, label: "WiFi Router" },
-              { id: "connections" as const, label: "Active Connections" },
-              { id: "backups" as const, label: "Backups" },
-              { id: "network" as const, label: "Network Settings" },
-              { id: "health" as const, label: "System Health" },
-              { id: "updates" as const, label: "Updates" },
-              { id: "licence" as const, label: "Licence" },
-              { id: "diagnostics" as const, label: "Diagnostics" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? "border-blue-500 text-blue-500"
-                    : "border-transparent text-neutral-400 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+
+        {/* ── Content ─────────────────────────────────────────────────────── */}
+        <div className="min-w-0 flex-1">
+          {/* Mobile bar. The sidebar is off-canvas below lg, so this is the only
+              way to reach it there - and on a till in landscape it is the only
+              thing between the user and every other section. */}
+          <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-neutral-800 bg-black/90 px-4 py-3 backdrop-blur lg:hidden">
+            <button
+              type="button"
+              onClick={() => setNavOpen(true)}
+              className="rounded-lg border border-neutral-800 p-2 text-neutral-300 transition-colors hover:border-neutral-600 hover:text-white"
+              aria-label="Open menu"
+            >
+              <Menu size={18} />
+            </button>
+            <span className="text-sm font-semibold">{active.label}</span>
+          </div>
+
+          <div className="px-4 py-6 sm:px-8 sm:py-10">
+            <header className="mb-6 hidden lg:block">
+              <h1 className="text-2xl font-bold">{active.label}</h1>
+              <p className="mt-1 text-sm text-neutral-400">{active.blurb}</p>
+            </header>
+
+            {error && (
+              <div className="mb-6 flex items-center gap-2 rounded-lg border border-red-500/50 bg-red-900/20 p-4 text-sm text-red-300">
+                <AlertTriangle size={18} className="shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <motion.div key={section} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+              {section === "overview" && (
+                <Overview
+                  config={config}
+                  onRunBackup={runBackup}
+                  backupBusy={backupBusy}
+                  onGo={go}
+                />
+              )}
+              {section === "connect" && <ConnectDevices />}
+              {section === "backups" && <BackupManager config={config} onUpdate={fetchConfig} />}
+              {section === "updates" && <UpdateManager />}
+              {section === "licence" && <LicenseManager />}
+              {section === "health" && <SystemHealth config={config} onRefresh={fetchConfig} />}
+              {section === "diagnostics" && <Diagnostics />}
+              {section === "sample-data" && <DemoDataManager />}
+            </motion.div>
           </div>
         </div>
       </div>
-
-      {/* Content */}
-      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
-        {activeTab === "overview" && (
-          <OverviewTab
-            config={config}
-            onRefresh={fetchConfig}
-            onOpenDiagnostics={() => setActiveTab("diagnostics")}
-            onRunBackup={runBackup}
-            backupBusy={backupBusy}
-          />
-        )}
-        {activeTab === "connect" && <ConnectDevices />}
-        {activeTab === "sample-data" && <DemoDataManager />}
-        {activeTab === "router" && <RouterManagement config={config} onUpdate={fetchConfig} />}
-        {activeTab === "connections" && (
-          <ConnectionsManager config={config} onUpdate={fetchConfig} />
-        )}
-        {activeTab === "backups" && (
-          <BackupManager config={config} onUpdate={fetchConfig} />
-        )}
-        {activeTab === "network" && (
-          <NetworkSettings config={config} onUpdate={fetchConfig} />
-        )}
-        {activeTab === "health" && <SystemHealth config={config} onRefresh={fetchConfig} />}
-        {activeTab === "updates" && <UpdateManager />}
-        {activeTab === "licence" && <LicenseManager />}
-        {activeTab === "diagnostics" && <Diagnostics />}
-      </div>
-      </>
-      )}
     </div>
   );
 }
 
-function SimpleView({
+function Sidebar({
+  section,
+  onGo,
+  open,
+  onClose,
+  licenceNeedsAttention,
+}: {
+  section: SectionId;
+  onGo: (id: SectionId) => void;
+  open: boolean;
+  onClose: () => void;
+  licenceNeedsAttention: boolean;
+}) {
+  return (
+    <>
+      {/* Scrim, mobile only. */}
+      {open && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={onClose}
+          className="fixed inset-0 z-30 bg-black/70 lg:hidden"
+        />
+      )}
+
+      <nav
+        className={`fixed inset-y-0 left-0 z-40 w-72 shrink-0 overflow-y-auto border-r border-neutral-800 bg-neutral-950
+                    px-4 py-6 transition-transform duration-200 ease-out
+                    lg:sticky lg:top-0 lg:h-screen lg:translate-x-0
+                    ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="mb-6 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+              XP POS
+            </p>
+            <p className="text-lg font-bold leading-tight">Server Management</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-neutral-500 hover:text-white lg:hidden"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <SidebarGroup
+          items={EVERYDAY}
+          section={section}
+          onGo={onGo}
+          badgeFor={(id) => (id === "licence" && licenceNeedsAttention ? "!" : null)}
+        />
+
+        <p className="mb-2 mt-6 px-3 text-[11px] font-semibold uppercase tracking-[0.15em] text-neutral-600">
+          Advanced
+        </p>
+        <SidebarGroup items={ADVANCED} section={section} onGo={onGo} badgeFor={() => null} />
+
+        <Link
+          href="/"
+          className="mt-6 flex items-center gap-2 rounded-lg border border-neutral-800 px-3 py-2.5 text-sm
+                     font-medium text-neutral-400 transition-colors hover:border-neutral-600 hover:text-white"
+        >
+          <Home size={16} />
+          Back to the POS
+        </Link>
+      </nav>
+    </>
+  );
+}
+
+function SidebarGroup({
+  items,
+  section,
+  onGo,
+  badgeFor,
+}: {
+  items: SectionDef[];
+  section: SectionId;
+  onGo: (id: SectionId) => void;
+  badgeFor: (id: SectionId) => string | null;
+}) {
+  return (
+    <div className="space-y-1">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const activeItem = section === item.id;
+        const badge = badgeFor(item.id);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onGo(item.id)}
+            aria-current={activeItem ? "page" : undefined}
+            className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+              activeItem
+                ? "bg-emerald-500/10 text-white ring-1 ring-emerald-500/30"
+                : "text-neutral-400 hover:bg-white/[0.04] hover:text-white"
+            }`}
+          >
+            <Icon
+              size={17}
+              className={`mt-0.5 shrink-0 ${activeItem ? "text-emerald-400" : "text-neutral-500"}`}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                {item.label}
+                {badge && (
+                  <span className="grid h-4 w-4 place-items-center rounded-full bg-amber-500 text-[10px] font-bold text-black">
+                    {badge}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-neutral-500">{item.blurb}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The landing section.
+ *
+ * This is the old "Simple" view, promoted to being the front page rather than a
+ * mode. Everything on it answers a question an owner actually asks - is it
+ * working, where do staff connect, is my data backed up - and every card is a
+ * route into the section that can do something about the answer.
+ */
+function Overview({
   config,
   onRunBackup,
   backupBusy,
-  onOpenAdvanced,
-  onOpenLicence,
+  onGo,
 }: {
   config: IServerConfig | null;
   onRunBackup: () => void;
   backupBusy: boolean;
-  onOpenAdvanced: () => void;
-  onOpenLicence: () => void;
+  onGo: (id: SectionId) => void;
 }) {
   const healthy = config?.systemStatus === "healthy";
-  const activeDevices =
-    config?.activeConnections.filter((c) => c.isActive).length || 0;
+  const activeSessions = config?.activeConnections.filter((c) => c.isActive).length || 0;
   const serverUrl = (config as { serverUrl?: string } | null)?.serverUrl;
+  const localNameUrl = (config as { localNameUrl?: string } | null)?.localNameUrl;
 
   const backupStatus = config?.lastBackupStatus || "never";
   const backupColor =
@@ -307,59 +427,72 @@ function SimpleView({
       : "text-neutral-400";
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
-      {/* Licence, ABOVE everything else when there is something to say. The
-          owner who needs this is the one whose trial is running out, and they
-          are not going to find it behind "Advanced settings". */}
-      <SimpleLicenceCard onOpen={onOpenLicence} />
+    <div className="space-y-6">
+      <LicenceAlert onOpen={() => onGo("licence")} />
 
-      {/* Big status tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex items-center gap-4">
-          {healthy ? (
-            <CheckCircle2 size={32} className="text-green-500" />
-          ) : (
-            <AlertTriangle size={32} className="text-yellow-500" />
-          )}
-          <div>
-            <p className="text-2xl font-bold capitalize">
-              {config?.systemStatus || "unknown"}
-            </p>
-            <p className="text-neutral-400 text-sm">System</p>
-          </div>
-        </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex items-center gap-4">
-          <Activity size={32} className="text-blue-500" />
-          <div>
-            <p className="text-2xl font-bold">{activeDevices}</p>
-            <p className="text-neutral-400 text-sm">Devices connected</p>
-          </div>
-        </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex items-center gap-4">
-          <HardDrive size={32} className={backupColor} />
-          <div>
-            <p className={`text-2xl font-bold capitalize ${backupColor}`}>
-              {backupStatus}
-            </p>
-            <p className="text-neutral-400 text-sm">Last backup</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Tile
+          icon={
+            healthy ? (
+              <CheckCircle2 size={28} className="text-green-500" />
+            ) : (
+              <AlertTriangle size={28} className="text-yellow-500" />
+            )
+          }
+          value={config?.systemStatus || "unknown"}
+          label="System"
+          onClick={() => onGo("health")}
+        />
+        <Tile
+          icon={<Activity size={28} className="text-blue-500" />}
+          value={String(activeSessions)}
+          label="Staff signed in"
+        />
+        <Tile
+          icon={<Database size={28} className={backupColor} />}
+          value={backupStatus}
+          label="Last backup"
+          valueClass={backupColor}
+          onClick={() => onGo("backups")}
+        />
       </div>
 
-      {/* Backup panel */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+      {/* Two addresses, two audiences. Conflating them is what made this
+          confusing before: the name is for this computer and never changes, the
+          number is for everyone else and can. */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="text-lg font-bold">Opening the POS</h2>
+
+        <p className="mt-3 text-sm text-neutral-400">On this computer — always the same:</p>
+        <p className="font-mono text-xl text-emerald-400 break-all">
+          {localNameUrl || "Detecting…"}
+        </p>
+
+        <p className="mt-5 text-sm text-neutral-400">On phones and tablets:</p>
+        <p className="font-mono text-lg text-neutral-200 break-all">{serverUrl || "Detecting…"}</p>
+
+        <button
+          type="button"
+          onClick={() => onGo("connect")}
+          className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-500/90 px-4 py-2.5 text-sm font-semibold
+                     text-black transition-colors hover:bg-emerald-400"
+        >
+          <Smartphone size={15} />
+          Show the QR code
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold">Backup</h2>
-            <p className="text-neutral-400 text-sm mt-1">
+            <p className="mt-1 text-sm text-neutral-400">
               {config?.lastBackupAt
                 ? `Last run: ${new Date(config.lastBackupAt).toLocaleString()}`
                 : "No backup has run yet."}
             </p>
             {config?.backupRunRequestedAt && (
-              <p className="text-blue-400 text-sm mt-1">
-                Requested — running on the next check…
-              </p>
+              <p className="mt-1 text-sm text-blue-400">Requested — running on the next check…</p>
             )}
           </div>
           <button
@@ -371,40 +504,62 @@ function SimpleView({
           </button>
         </div>
       </div>
-
-      {/* Server address */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
-        <h2 className="text-lg font-bold mb-1">Open the POS on other devices</h2>
-        <p className="text-neutral-400 text-sm mb-3">
-          Staff devices on the same WiFi can open this address in a browser:
-        </p>
-        <p className="text-xl font-mono text-blue-400 break-all">
-          {serverUrl || "Detecting…"}
-        </p>
-      </div>
-
-      {/* Advanced entry */}
-      <div className="text-center pt-2">
-        <button
-          onClick={onOpenAdvanced}
-          className="text-neutral-400 hover:text-white text-sm font-medium underline underline-offset-4"
-        >
-          Advanced settings (WiFi devices, network, backups, health)
-        </button>
-      </div>
     </div>
   );
 }
 
+function Tile({
+  icon,
+  value,
+  label,
+  valueClass = "",
+  onClick,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  valueClass?: string;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      {icon}
+      <div className="min-w-0">
+        <p className={`truncate text-2xl font-bold capitalize ${valueClass}`}>{value}</p>
+        <p className="text-sm text-neutral-400">{label}</p>
+      </div>
+    </>
+  );
+
+  if (!onClick) {
+    return (
+      <div className="flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900 p-6">
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-left
+                 transition-colors hover:border-neutral-600"
+    >
+      {inner}
+    </button>
+  );
+}
+
 /**
- * Licence state in Simple mode.
+ * Licence state, on the front page.
  *
  * Renders NOTHING while the POS is quietly licensed - a working appliance
  * should not have a licence widget on its front page. It appears only when
  * there is something the owner has to act on: a trial running down, a grace
  * period, or a POS that has gone read-only.
  */
-function SimpleLicenceCard({ onOpen }: { onOpen: () => void }) {
+function LicenceAlert({ onOpen }: { onOpen: () => void }) {
   const [status, setStatus] = useState<{
     restricted: boolean;
     warn: boolean;
@@ -419,12 +574,12 @@ function SimpleLicenceCard({ onOpen }: { onOpen: () => void }) {
         const res = await fetch("/api/admin/server-config/license");
         if (res.ok && !cancelled) setStatus(await res.json());
       } catch {
-        // The licence panel in Advanced reports properly; a fetch failure here
-        // means showing nothing, which is the right amount of noise.
+        // The licence section reports properly; a fetch failure here means
+        // showing nothing, which is the right amount of noise.
       }
     };
-    load();
-    const t = setInterval(load, 60000);
+    void load();
+    const t = setInterval(() => void load(), 60000);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -464,116 +619,21 @@ function SimpleLicenceCard({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-function StatusCard({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-neutral-900 border border-neutral-800 rounded-lg p-4"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-neutral-400 text-sm">{label}</p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
-        </div>
-        <div className="opacity-60">{icon}</div>
-      </div>
-    </motion.div>
-  );
-}
-
-function OverviewTab({
-  config,
-  onRefresh,
-  onOpenDiagnostics,
-  onRunBackup,
-  backupBusy,
-}: {
-  config: IServerConfig | null;
-  onRefresh: () => void;
-  onOpenDiagnostics: () => void;
-  onRunBackup: () => void;
-  backupBusy: boolean;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">System Overview</h2>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
-          <InfoItem
-            label="Server Address (auto-detected)"
-            value={
-              (config as { serverUrl?: string } | null)?.serverUrl ||
-              "Detecting…"
-            }
-          />
-          <InfoItem label="Last Health Check" value={config?.lastHealthCheck ? new Date(config.lastHealthCheck).toLocaleString() : "Never"} />
-          <InfoItem label="Router Management" value={config?.routerEnabled ? "Enabled" : "Disabled"} />
-          <InfoItem label="Backup System" value={config?.backupEnabled ? "Enabled" : "Disabled"} />
-          <InfoItem label="Backup Time" value={`${config?.backupHour}:00 (Daily)`} />
-          <InfoItem label="Session Timeout" value={`${config?.sessionTimeoutMinutes} minutes`} />
-          <InfoItem label="Max Connections" value={String(config?.maxConcurrentConnections)} />
-        </div>
-      </div>
-
-      <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            onClick={onRefresh}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium transition-colors hover:bg-blue-700 sm:w-auto"
-          >
-            Refresh Status
-          </button>
-          <button
-            onClick={onRunBackup}
-            disabled={backupBusy}
-            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 disabled:opacity-50 sm:w-auto"
-          >
-            {backupBusy ? "Backing up…" : "Run Backup Now"}
-          </button>
-          <button
-            onClick={onOpenDiagnostics}
-            className="rounded-lg bg-neutral-800 px-4 py-2 font-medium transition-colors hover:bg-neutral-700 sm:w-auto"
-          >
-            System Diagnostics
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-neutral-400 text-sm">{label}</p>
-      <p className="text-lg font-semibold mt-1">{value}</p>
-    </div>
-  );
-}
-
 function LoadingSkeleton() {
   return (
     <div className="min-h-screen bg-black">
-      <div className="border-b border-neutral-800">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-          <div className="h-8 w-64 bg-neutral-800 rounded animate-pulse mb-6" />
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-neutral-900 rounded-lg p-4 h-20 animate-pulse" />
+      <div className="mx-auto flex max-w-[1400px]">
+        <div className="hidden w-72 shrink-0 border-r border-neutral-800 p-4 lg:block">
+          <div className="mb-6 h-10 animate-pulse rounded bg-neutral-900" />
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="mb-2 h-12 animate-pulse rounded-lg bg-neutral-900" />
+          ))}
+        </div>
+        <div className="flex-1 p-8">
+          <div className="mb-6 h-9 w-64 animate-pulse rounded bg-neutral-900" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-neutral-900" />
             ))}
           </div>
         </div>

@@ -24,6 +24,7 @@ import { promises as fs } from "fs";
 import { runPowerShellJson, asArray } from "@/lib/win/powershell";
 import { dataRoot, logsDir, installDir } from "@/lib/updates/paths";
 import { getSiteIdentity } from "@/lib/updates/identity";
+import { LOCAL_NAME, isLocalNameInstalled } from "@/lib/net/localName";
 
 export const SERVICE_IDS = ["XPPOS-MongoDB", "XPPOS-App", "XPPOS-Caddy"] as const;
 export type ServiceId = (typeof SERVICE_IDS)[number];
@@ -74,6 +75,19 @@ export interface Diagnostics {
     dataRoot: string;
     logsDir: string;
     configuredPort: string | null;
+  };
+  /**
+   * The fixed local name, and whether the hosts entry backing it survived.
+   *
+   * Worth reporting because its one realistic failure mode is silent: an
+   * antivirus product or a Windows repair strips the hosts file, and the
+   * desktop shortcut on the till stops opening with no other symptom. The app
+   * repairs this at every start, so `installed: false` here means the repair
+   * itself is failing - almost always because the app is not running elevated.
+   */
+  localName: {
+    name: string;
+    installed: boolean;
   };
   services: ServiceStatus[];
   listeners: ListeningPort[];
@@ -225,13 +239,15 @@ async function readConfiguredPort(): Promise<string | null> {
 export async function collectDiagnostics(): Promise<Diagnostics> {
   const problems: string[] = [];
 
-  const [identity, services, listeners, logs, configuredPort] = await Promise.all([
-    getSiteIdentity(),
-    readServices(problems),
-    readListeners(problems),
-    readLogIndex(problems),
-    readConfiguredPort(),
-  ]);
+  const [identity, services, listeners, logs, configuredPort, localNameInstalled] =
+    await Promise.all([
+      getSiteIdentity(),
+      readServices(problems),
+      readListeners(problems),
+      readLogIndex(problems),
+      readConfiguredPort(),
+      isLocalNameInstalled(),
+    ]);
 
   return {
     collectedAt: new Date().toISOString(),
@@ -254,6 +270,10 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
       dataRoot: dataRoot(),
       logsDir: logsDir(),
       configuredPort,
+    },
+    localName: {
+      name: LOCAL_NAME,
+      installed: localNameInstalled,
     },
     services,
     listeners,

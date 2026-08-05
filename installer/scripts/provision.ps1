@@ -765,14 +765,21 @@ Write-Host "  ============================================================" -For
 Write-Host "   XP POS IS RUNNING" -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host ""
+Write-Host "   On this computer (never changes):" -ForegroundColor White
+Write-Host "      http://pos.xenithpulse.local:$Port" -ForegroundColor Cyan
+Write-Host "      Also on the desktop as the 'XP POS' icon." -ForegroundColor DarkGray
+Write-Host ""
 if ($lanIps.Count -gt 0) {
-    Write-Host "   Staff devices open:" -ForegroundColor White
+    Write-Host "   Phones and tablets:" -ForegroundColor White
     foreach ($ip in $lanIps) { Write-Host "      http://${ip}:$Port" -ForegroundColor Cyan }
+    Write-Host "      Easier: Server Management -> Connect Devices, scan the QR code." -ForegroundColor DarkGray
+    Write-Host "      Use this numeric address on other floors - the .local name" -ForegroundColor DarkGray
+    Write-Host "      above does not cross a router." -ForegroundColor DarkGray
 } else {
     Write-Warn "No LAN IP detected - is this box on the network?"
 }
 Write-Host ""
-Write-Host "   On this box:  http://127.0.0.1:$Port" -ForegroundColor DarkGray
+Write-Host "   Fallback on this box:  http://127.0.0.1:$Port" -ForegroundColor DarkGray
 Write-Host ""
 
 # NOTE: the old "ENABLE_SETUP_ENDPOINTS is open" warning that used to sit here
@@ -783,8 +790,6 @@ Write-Host "   Sign in with:  admin / admin" -ForegroundColor White
 Write-Host "   The POS is preloaded with a sample menu and floor plan." -ForegroundColor DarkGray
 Write-Host "   Removing that sample data is what sets a real password -" -ForegroundColor DarkGray
 Write-Host "   Server Management -> Sample Data. Do it before real trade." -ForegroundColor DarkGray
-Write-Host ""
-Write-Host "   Name that survives a router restart:  http://xppos.local:$Port" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "   IMPORTANT - verify unattended start before leaving site:" -ForegroundColor Yellow

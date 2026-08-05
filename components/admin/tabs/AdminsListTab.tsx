@@ -20,12 +20,16 @@ import {
   X,
   Check,
   ChevronDown,
+  ChefHat,
+  Bike,
+  ShoppingBag,
 } from 'lucide-react';
 import {
   AdminRole,
   AdminPermission,
   ROLE_PERMISSIONS,
   ADMIN_ROLE_LABELS,
+  ADMIN_ROLE_DESCRIPTIONS,
   ADMIN_PERMISSION_LABELS,
 } from '@/types/admin.types';
 
@@ -63,14 +67,18 @@ const ROLE_COLORS: Record<AdminRole, string> = {
   cashier: 'bg-green-500/20 text-green-400 border-green-500/30',
   chef: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   waiter: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  delivery: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+  takeaway: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
 };
 
 const ROLE_ICONS: Record<AdminRole, React.ReactNode> = {
   super_admin: <ShieldAlert size={14} />,
   manager: <ShieldCheck size={14} />,
   cashier: <Shield size={14} />,
-  chef: <Shield size={14} />,
+  chef: <ChefHat size={14} />,
   waiter: <Shield size={14} />,
+  delivery: <Bike size={14} />,
+  takeaway: <ShoppingBag size={14} />,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -531,6 +539,13 @@ export default function AdminsListTab() {
                       <option key={r} value={r}>{ADMIN_ROLE_LABELS[r]}</option>
                     ))}
                   </select>
+                  {/* The role is the only access decision an owner makes here,
+                      and "Cashier" vs "Waiter" is not self-evident. One plain
+                      sentence beats making them infer it from the permission
+                      chips below. */}
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#777]">
+                    {ADMIN_ROLE_DESCRIPTIONS[form.role]}
+                  </p>
                 </div>
 
                 {/* Permissions preview */}

@@ -143,7 +143,21 @@
       "Bash(sed -i 's|^import { createCipheriv, randomBytes, scryptSync, createPrivateKey } from \"node:crypto\";|import { createPrivateKey } from \"node:crypto\";|' tools/licensing/cross-check-erp.mjs)",
       "Bash(node --check tools/licensing/cross-check-erp.mjs)",
       "Bash(sed -i '32d' tools/licensing/cross-check-erp.mjs)",
-      "Bash(sed -i 's|^import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|import { existsSync, mkdirSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|' tools/licensing/cross-check-erp.mjs)"
+      "Bash(sed -i 's|^import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|import { existsSync, mkdirSync, rmSync, writeFileSync, cpSync } from \"node:fs\";|' tools/licensing/cross-check-erp.mjs)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(if \\($?\\) { \"TYPECHECK CLEAN\" })",
+      "PowerShell(npx eslint lib/sitename app/api/system/ping app/api/system/connect features/server-management app/api/admin/server-config lib/net lib/diagnostics instrumentation.ts)",
+      "PowerShell(if \\($?\\) { \"LINT CLEAN\" })",
+      "PowerShell(npx eslint lib/sitename app/api/system features/server-management/ConnectDevices.tsx features/server-management/ServerManagementPage.tsx features/server-management/components/ConnectDevices.tsx app/api/admin/server-config lib/net lib/diagnostics instrumentation.ts)",
+      "PowerShell(if \\($?\\) { \"LINT CLEAN \\(my files\\)\" })",
+      "PowerShell(npx eslint lib/sitename app/api/system features/server-management/ServerManagementPage.tsx features/server-management/components/ConnectDevices.tsx app/api/admin/server-config lib/net lib/diagnostics instrumentation.ts)",
+      "PowerShell(if \\($?\\) { \"LINT CLEAN \\(changed files\\)\" })",
+      "PowerShell(npx eslint lib/net app/api/system features/server-management/ServerManagementPage.tsx features/server-management/components/ConnectDevices.tsx app/api/admin/server-config lib/diagnostics instrumentation.ts)",
+      "PowerShell(npx eslint lib/net features/server-management/components/ConnectDevices.tsx)",
+      "PowerShell(npx eslint \"app/\\(auth\\)/login\" components/ui/QrCode.tsx features/server-management app/server-management)",
+      "Bash(git mv *)",
+      "PowerShell(npx eslint app components features lib types instrumentation.ts stores 2>&1)"
     ],
     "additionalDirectories": [
       "E:\\xp-thermal-service\\src\\types",

@@ -13,19 +13,32 @@
 
 import { NextResponse } from "next/server";
 import { getPosAddresses } from "@/lib/net/addresses";
+import { isLocalNameInstalled } from "@/lib/net/localName";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const addresses = await getPosAddresses();
+    const [addresses, localNameInstalled] = await Promise.all([
+      getPosAddresses(),
+      isLocalNameInstalled(),
+    ]);
 
     return NextResponse.json({
       ...addresses,
-      // The one to print, put on a card, or encode in a QR. Prefer a numeric
-      // address over the mDNS name: the number works everywhere, and the name
-      // does not work on older Android or where the access point blocks
-      // multicast between clients.
+      localNameInstalled,
+      // What the QR code carries.
+      //
+      // The NUMERIC address, always - and this is the one decision on this
+      // screen worth being stubborn about. The QR exists for devices that are
+      // not this computer, and the numeric address is the only form that
+      // reaches them all: it is what crosses a router to a floor on its own
+      // subnet, and it is what works on an Android old enough not to speak
+      // mDNS. Every name we have is either link-local or local to this box.
+      //
+      // A number that a waiter never types is not a usability problem. Scanning
+      // is what removes the typing, so the address only has to be RIGHT, and
+      // the screen re-reads it every 30s so it stays right.
       primaryUrl: addresses.lanUrls[0] ?? addresses.localUrl,
       onNetwork: addresses.lanIps.length > 0,
     });

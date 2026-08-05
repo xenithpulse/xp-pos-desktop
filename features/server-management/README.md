@@ -2,56 +2,78 @@
 
 ## Overview
 
-The **Server Management Dashboard** gives you complete control over your ERP appliance. You can manage WiFi router whitelists, active connections, backup paths, and system settings—all without hardcoding anything or touching the command line.
+The **Server Management Dashboard** gives you control over your POS appliance:
+the address staff connect to, backups, updates, licensing and health — without
+touching the command line.
+
+---
+
+## Removed in Phase 15
+
+Three tabs were deleted. Recorded here because the absence is deliberate:
+
+- **WiFi Router (MAC whitelist)** — nothing in this repo has ever talked to a
+  router. Addresses were written to MongoDB and read back by the same screen,
+  while the UI claimed "devices not on the list will be blocked at the router
+  level". It presented itself as access control while providing none. Real
+  device access control is `POS_ALLOWED_CIDRS`, enforced by Caddy — see
+  `installer/config/Caddyfile.http`.
+- **Network Settings** — rate limit, max connections, session timeout and a
+  never-wired "DNS integration" field, all duplicating `.env` and the Caddyfile,
+  which are what actually take effect.
+- **Active Connections** — a per-device session list that cannot be per-device
+  on a multi-floor site: every device behind an upstairs router arrives NAT'd as
+  that router's single WAN address, so the list showed one IP for a whole floor.
+
+The MongoDB fields behind them are left in place and inert. Dropping columns
+from an appliance database that upgrades in place, on sites we cannot inspect
+first, buys tidiness at the price of a migration that can fail in a restaurant.
 
 ---
 
 ## Features
 
-### 1. **WiFi Router Management**
-- **MAC Address Whitelisting**: Add/remove/block devices with their MAC addresses
-- **Device Types**: Categorize devices (laptop, tablet, phone, other)
-- **Status Control**: Toggle devices between active/blocked/inactive
-- **Notes**: Add descriptive notes for each device
-- **Settings**: Enable/disable filtering, blacklist mode, block unknown devices
+### 1. **Connect Devices**
+Two addresses for two audiences — see `docs/handover/PHASE-15-ADDRESSING.md`.
 
-### 2. **Active Connections Tracking**
-- **Real-time View**: See who's currently connected
-- **Connection Details**: IP address, username, role, device name, login time
-- **Activity Monitoring**: Last activity timestamp
-- **Connection Management**: Terminate user sessions remotely
-- **Statistics**: Total connections, active users, session stats
+- **QR code**, for phones and tablets. Carries the numeric LAN address, re-read
+  every 30s. The number is deliberate: it is the only form that crosses a router
+  to a floor on its own subnet, and scanning means nobody types it anyway.
+- **`pos.xenithpulse.local`**, for the till itself. Backed by a hosts entry
+  (`lib/net/localName.ts`) pointing at loopback, so it never changes, works with
+  the network unplugged, and is what the desktop shortcut opens.
+- **Reachability check**: probes the name from the device you are holding rather
+  than claiming it works everywhere.
+- **Pin the IP**: converts the current DHCP lease into a static configuration,
+  and tells you to add a router DHCP reservation as well.
 
-### 3. **Backup Management**
+### 2. **Backup Management**
 - **Multiple Backup Paths**: Configure local, external, and network storage
 - **Retention Policies**: Set custom retention periods per path (1-365 days)
 - **Manual Backups**: Trigger backups immediately without waiting for schedule
 - **Status Tracking**: See storage usage and last backup time for each path
 - **Backup History**: View and manage existing backups
 
-### 4. **Network Settings**
-- **Connection Limits**: Configure max concurrent connections
-- **Session Timeout**: Set idle session timeout period
-- **Rate Limiting**: Control requests per minute per IP
-- **Allowed Networks**: Restrict access to specific CIDR ranges (optional)
-- **HTTPS Configuration**: Toggle HTTPS requirement
-- **DNS Integration**: Configure Cloudflare or other DNS providers
-
-### 5. **System Health Monitoring**
+### 4. **System Health Monitoring**
 - **Status Dashboard**: Overall system health (healthy/warning/critical)
 - **Health Checks**: Manual health check button with detailed results
 - **Database Monitoring**: Connection status and latency
 - **Disk Usage**: Real-time disk space monitoring with threshold alerts
 - **Memory Usage**: Available memory tracking
 - **Port Status**: Check key ports are accessible
-- **Recommendations**: Best practices for maintaining system health
 
-### 6. **Security Settings**
-- **HTTPS Requirement**: Enforce encrypted connections
-- **Rate Limiting**: Prevent brute-force attacks
-- **Audit Logging**: Track all admin actions
-- **Log Retention**: Configurable retention period (days)
-- **Integration Tokens**: Manage DNS provider credentials securely
+> ⚠️ The "Security" block on this tab displays `requireHttps`,
+> `enableRateLimiting`, `rateLimitPerMinute` and `enableAuditLog`. **Nothing
+> enforces any of them** — no middleware reads those fields. They are the same
+> class of problem as the removed MAC whitelist and should either be wired up or
+> deleted; they were left alone in Phase 15 only because the tab was out of
+> scope.
+
+### 5. **Updates, Licence, Diagnostics**
+See `docs/handover/PHASE-10-REMOTE-UPDATE.md` and
+`docs/handover/PHASE-11-LICENSING.md`. Diagnostics also reports the permanent
+address and what it currently points at, which is the first thing to check on a
+"staff cannot reach the POS" call.
 
 ---
 
@@ -60,54 +82,42 @@ The **Server Management Dashboard** gives you complete control over your ERP app
 ### Database Schema
 ```typescript
 IServerConfig {
-  // Router Management
-  routerEnabled: boolean
-  routerMacWhitelist: IRouterWhitelistEntry[]
-  routerBlockUnknownDevices: boolean
-  
-  // Network Settings
-  allowedNetworks: string[] // CIDR ranges
-  maxConcurrentConnections: number
-  sessionTimeoutMinutes: number
-  
   // Backup Management
   backupPaths: IBackupPath[]
   backupEnabled: boolean
   backupHour: number
   backupRetentionDays: number
-  
-  // Active Connections
-  trackConnections: boolean
-  activeConnections: IActiveConnection[]
-  
-  // Security
-  requireHttps: boolean
-  enableRateLimiting: boolean
-  enableAuditLog: boolean
+
+  // Health thresholds
+  diskUsageThresholdPercent: number
+
+  // Inert since Phase 15 — kept so existing documents load unchanged.
+  // Nothing reads or writes these; see "Removed in Phase 15" above.
+  routerEnabled, routerMacWhitelist, routerBlockUnknownDevices,
+  allowedNetworks, maxConcurrentConnections, sessionTimeoutMinutes,
+  trackConnections, activeConnections
 }
 ```
 
 ### API Endpoints
 
 #### Server Config (Main)
-- `GET /api/admin/server-config` - Fetch full configuration
+- `GET /api/admin/server-config` - Fetch full configuration (plus `serverUrl`
+  and `localNameUrl`, both derived at request time)
 - `PUT /api/admin/server-config` - Update configuration
-
-#### Router Management
-- `POST /api/admin/server-config/router` - Add device to whitelist
-- `PATCH /api/admin/server-config/router` - Update device status
-- `DELETE /api/admin/server-config/router` - Remove device
 
 #### Backup Management
 - `POST /api/admin/server-config/backups` - Add backup path
 - `PATCH /api/admin/server-config/backups` - Update backup path
 - `DELETE /api/admin/server-config/backups` - Remove backup path
 
-#### Active Connections
-- `GET /api/admin/server-config/connections` - List active connections
-- `POST /api/admin/server-config/connections` - Log new connection
-- `PATCH /api/admin/server-config/connections` - Update activity
-- `DELETE /api/admin/server-config/connections` - Terminate connection
+#### Addresses
+- `GET /api/system/connect` - Every address that reaches this POS, plus the
+  permanent-name status. Read live, never cached.
+- `GET`/`POST /api/system/network` - Read the adapter; pin the IP or hand it
+  back to DHCP.
+- `GET /api/system/ping` - Reachability probe. The only CORS-open endpoint;
+  keep its response body empty.
 
 #### System Health
 - `GET /api/admin/server-config/health` - Get health status

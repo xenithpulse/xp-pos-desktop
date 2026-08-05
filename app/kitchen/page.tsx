@@ -8,10 +8,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChefHat, RefreshCw, Wifi, WifiOff, Radio } from 'lucide-react';
+import { ChefHat, RefreshCw, Wifi, WifiOff, Radio, Maximize, Minimize } from 'lucide-react';
 import { OrderManagerGrid } from '@/pos_modules/orders';
 import type { Order } from '@/types/order.types';
 import { useRealtimeSync } from '@/lib/hooks/useRealtimeSync';
+import { useFullscreen } from '@/lib/hooks/useFullscreen';
+import RequirePermission from '@/components/auth/RequirePermission';
 import type { RealtimeEvent } from '@/lib/realtime/types';
 
 const FETCH_TIMEOUT_MS = 15_000;
@@ -24,6 +26,15 @@ interface MenuItemLite {
 }
 
 export default function KitchenScreenPage() {
+  return (
+    <RequirePermission permission="view_kitchen">
+      <KitchenScreen />
+    </RequirePermission>
+  );
+}
+
+function KitchenScreen() {
+  const { isFullscreen, supported, toggle: toggleFullscreen } = useFullscreen();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [stationMap, setStationMap] = useState<Map<string, string>>(new Map());
@@ -164,6 +175,20 @@ export default function KitchenScreenPage() {
           >
             <RefreshCw size={16} />
           </button>
+
+          {/* Full screen. The point of this screen is tickets read from across
+              a pass, so the browser chrome is worth reclaiming. Hidden entirely
+              where the API is unavailable rather than shown and doing nothing. */}
+          {supported && (
+            <button
+              onClick={() => void toggleFullscreen()}
+              className="p-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+            >
+              {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+          )}
         </div>
       </header>
 

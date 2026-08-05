@@ -5,18 +5,19 @@
 
 import { NextResponse } from "next/server";
 import { getOrCreateServerConfig, detectRequestUrl } from "@/lib/serverConfig";
+import { MDNS_HOST, getPosPort } from "@/lib/net/addresses";
 
 export const dynamic = "force-dynamic";
 
 // Top-level scalar/array fields the dashboard is allowed to update directly.
-// (Sub-collections like the MAC whitelist / backup paths have their own routes.)
+// (Sub-collections like the backup paths have their own routes.)
+//
+// The router-whitelist and network-limit keys were removed with the screens
+// that set them - see the note in features/server-management/ServerManagementPage.tsx.
+// The schema fields survive so existing documents load unchanged; they are just
+// no longer writable through this endpoint, which is the honest position for a
+// value nothing reads.
 const ALLOWED_FIELDS = new Set([
-  "routerEnabled",
-  "routerBlacklistEnabled",
-  "routerBlockUnknownDevices",
-  "allowedNetworks",
-  "maxConcurrentConnections",
-  "sessionTimeoutMinutes",
   "backupEnabled",
   "backupHour",
   "backupRetentionDays",
@@ -38,6 +39,10 @@ export async function GET(req: Request) {
     // Surface the address the box is currently reachable at, derived from the
     // live request — proof that auth/URL now follows the network automatically.
     data.serverUrl = detectRequestUrl(req);
+    // The fixed name for this machine. Always the same string; it is on the
+    // desktop shortcut and the connection card, and the dashboard shows it so
+    // the owner has one address to remember for the till itself.
+    data.localNameUrl = `http://${MDNS_HOST}:${await getPosPort()}`;
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json(

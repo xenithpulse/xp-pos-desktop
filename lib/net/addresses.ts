@@ -25,6 +25,15 @@ export interface PosAddresses {
   lanIps: string[];
   /** http://<ip>:<port> for each LAN address. */
   lanUrls: string[];
+  /**
+   * The fixed name for the machine the POS is installed on.
+   *
+   * Always present and never changes. On the server box itself it resolves from
+   * the hosts file (lib/net/localName.ts), so it does not depend on the network
+   * being up. On other devices on the SAME subnet it resolves over mDNS. It
+   * does NOT cross a router - staff devices on another floor use the QR code.
+   */
+  localNameUrl: string;
   /** The stable mDNS name, when the responder is running. */
   mdnsUrl: string | null;
   /** http://<machine-name>:<port> - works for Windows clients via NetBIOS. */
@@ -34,8 +43,25 @@ export interface PosAddresses {
   localUrl: string;
 }
 
-/** The name advertised over mDNS. Kept in step with lib/net/mdns.ts. */
-export const MDNS_HOST = "xppos.local";
+/**
+ * The branded name for this machine.
+ *
+ * Two mechanisms serve it and they are independent on purpose: a hosts entry on
+ * the server box (lib/net/localName.ts) and an mDNS answer for everything else
+ * on the same subnet (lib/net/mdns.ts). Change it here and both follow, along
+ * with installer/scripts/connect-card.ps1 - which is NOT imported from here and
+ * has to be edited to match.
+ */
+export const MDNS_HOST = "pos.xenithpulse.local";
+
+/**
+ * Every name the mDNS responder answers for.
+ *
+ * xppos.local is kept alongside the branded name because a single-label .local
+ * name is the most broadly supported form of mDNS, and because sites installed
+ * before the rename have it on their printed cards.
+ */
+export const MDNS_ALIASES = [MDNS_HOST, "xppos.local"] as const;
 
 const DEFAULT_PORT = 8080;
 
@@ -117,6 +143,10 @@ export async function getPosAddresses(): Promise<PosAddresses> {
     port,
     lanIps,
     lanUrls: lanIps.map((ip) => `http://${ip}:${port}`),
+    // Unconditional, unlike mdnsUrl. This one is backed by the hosts file on
+    // the machine the POS runs on, so it is correct there whether or not the
+    // mDNS responder came up and whether or not there is a network at all.
+    localNameUrl: `http://${MDNS_HOST}:${port}`,
     mdnsUrl: isMdnsRunning() ? `http://${MDNS_HOST}:${port}` : null,
     hostnameUrl: `http://${hostname}:${port}`,
     hostname,

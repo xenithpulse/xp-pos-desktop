@@ -3,6 +3,7 @@ import { NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { mongooseConnect } from "@/lib/mongoose";
 import type { AdminPermission, AdminRole } from "@/models/schemas/admin.schema";
+import { resolvePermissions } from "@/types/admin.types";
 import bcrypt from "bcrypt";
 import { Types } from "mongoose";
 import { sendNotification } from "@/lib/helpers/notify";
@@ -73,8 +74,13 @@ export const authOptions: NextAuthOptions = {
         const userData: SessionUser = {
           id: oid.toString(),
           name: admin.username,
+          // Resolved from the role rather than read straight off the document.
+          // POST /api/admin creates accounts with a role and no permissions
+          // array at all, so `admin.permissions` is empty for every account
+          // made through the staff screen - which silently denied those users
+          // every permission-gated route. See resolvePermissions().
           role: admin.role,
-          permissions: admin.permissions,
+          permissions: resolvePermissions(admin.role, admin.permissions),
         };
 
         sendNotification({

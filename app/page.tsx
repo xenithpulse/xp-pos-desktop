@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import {
   MapPin, Clock, Sparkles, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Quote,
   Utensils, BookOpen, Boxes, Settings, Server, GitBranch, ArrowUpRight,
+  ShoppingBag, Bike, ChefHat,
 } from "lucide-react";
 import { erp_business_type, erp_version } from "@/config/system_info";
+import { hasPermission, type AdminPermission } from "@/types/admin.types";
 
 // ─── Inspirational quotes (kept from the previous home screen) ───────────────
 const quotes = [
@@ -24,19 +26,33 @@ type WeatherData = { temp: number; condition: string; icon: string } | null;
 // ─── Redirection targets (only routes that exist as pages) ───────────────────
 type Accent = "cyan" | "emerald" | "amber" | "violet" | "sky" | "rose";
 
+// Every tile carries the permission it needs, and the grid is filtered against
+// the signed-in user before it renders.
+//
+// This is presentation, not security - the pages themselves are guarded (see
+// components/auth/RequirePermission.tsx) and the APIs behind them are guarded
+// again on the server. What it prevents is a screen full of doors that open
+// onto a redirect: a delivery rider seeing "Admin" and "Server" learns nothing
+// except that this software is not for them.
+//
+// `perm: null` means everyone signed in.
 const QUICK_LINKS: {
   href: string;
   label: string;
   desc: string;
   icon: React.ReactNode;
   accent: Accent;
+  perm: AdminPermission | null;
 }[] = [
-  { href: "/hub", label: "POS Floor", desc: "Take orders, manage tables & the floor", icon: <Utensils size={20} />, accent: "cyan" },
-  { href: "/daily-sheet", label: "Daily Sheet", desc: "Open the day, record income & expenses", icon: <BookOpen size={20} />, accent: "emerald" },
-  { href: "/admin/inventory", label: "Inventory", desc: "Stock levels, valuation & alerts", icon: <Boxes size={20} />, accent: "amber" },
-  { href: "/admin/manage", label: "Admin", desc: "Menu, staff, tables & settings", icon: <Settings size={20} />, accent: "violet" },
-  { href: "/peer-management", label: "Peers", desc: "Connected devices & peers", icon: <GitBranch size={20} />, accent: "sky" },
-  { href: "/server-management", label: "Server", desc: "Backups & server control", icon: <Server size={20} />, accent: "rose" },
+  { href: "/hub", label: "POS Floor", desc: "Take orders, manage tables & the floor", icon: <Utensils size={20} />, accent: "cyan", perm: "manage_orders" },
+  { href: "/takeaway", label: "Takeaway", desc: "Orders collected at the counter", icon: <ShoppingBag size={20} />, accent: "emerald", perm: "manage_takeaway" },
+  { href: "/delivery", label: "Delivery", desc: "Orders going out for delivery", icon: <Bike size={20} />, accent: "sky", perm: "manage_delivery" },
+  { href: "/kitchen", label: "Kitchen Display", desc: "Live ticket board for the pass", icon: <ChefHat size={20} />, accent: "amber", perm: "view_kitchen" },
+  { href: "/daily-sheet", label: "Daily Sheet", desc: "Open the day, record income & expenses", icon: <BookOpen size={20} />, accent: "emerald", perm: "view_reports" },
+  { href: "/admin/inventory", label: "Inventory", desc: "Stock levels, valuation & alerts", icon: <Boxes size={20} />, accent: "amber", perm: "manage_inventory" },
+  { href: "/admin/manage", label: "Admin", desc: "Menu, staff, tables & settings", icon: <Settings size={20} />, accent: "violet", perm: "manage_settings" },
+  { href: "/peer-management", label: "Peers", desc: "Connected devices & peers", icon: <GitBranch size={20} />, accent: "sky", perm: "manage_settings" },
+  { href: "/server-management", label: "Server", desc: "Backups & server control", icon: <Server size={20} />, accent: "rose", perm: null },
 ];
 
 // Accent token map — one place so links stay consistent.
@@ -57,6 +73,20 @@ export default function Home() {
   const [location, setLocation] = useState<string>("Detecting…");
   const [weather, setWeather] = useState<WeatherData>(null);
   const [dailyQuote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
+
+  // Only the tiles this person can actually open.
+  //
+  // While the session is still loading, `user` is undefined and this resolves
+  // to just the unrestricted tiles rather than to everything - showing the full
+  // grid and then removing half of it a moment later is worse than showing a
+  // small grid that grows.
+  const visibleLinks = useMemo(
+    () =>
+      QUICK_LINKS.filter(
+        (link) => link.perm === null || hasPermission(user?.role, user?.permissions, link.perm),
+      ),
+    [user?.role, user?.permissions],
+  );
 
   // Live clock
   useEffect(() => {
@@ -191,7 +221,7 @@ export default function Home() {
         >
           <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-white/40">Jump back in</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {QUICK_LINKS.map((link) => {
+            {visibleLinks.map((link) => {
               const a = ACCENT[link.accent];
               return (
                 <Link

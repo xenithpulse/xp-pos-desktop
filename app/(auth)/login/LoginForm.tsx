@@ -2,6 +2,19 @@
 //
 // The sign-in form. Split out of page.tsx so that page.tsx can be a server
 // component and send a never-configured installation to /setup instead.
+//
+// ── THIS SCREEN HAS TWO AUDIENCES ────────────────────────────────────────────
+// Almost every time it is rendered, it is shown to somebody who signs in twenty
+// times a week and wants a username box and nothing else. A handful of times in
+// the product's life it is shown to somebody who has just plugged a computer in,
+// has never seen a POS before, and does not know what it is looking at.
+//
+// So the extra material is CONDITIONAL, not permanent. The welcome, the
+// credentials and the expanded connect panel appear only while the admin
+// account is still on its default password - a state the POS exits the moment
+// somebody goes live, and which therefore cannot linger on a working till. What
+// a returning user sees is what was here before: a wordmark, two fields, and a
+// quiet line of small print.
 'use client';
 
 import { useState } from "react";
@@ -16,7 +29,10 @@ import {
   ArrowBigUp,
   CheckCircle2,
   KeyRound,
+  Sparkles,
 } from "lucide-react";
+import ConnectPanel from "./ConnectPanel";
+import { landingPathForRole } from "@/types/admin.types";
 
 const ERROR_MESSAGES: Record<string, string> = {
   MISSING_CREDENTIALS: "Please enter your username and password.",
@@ -78,9 +94,28 @@ export default function LoginForm({
       setLoading(false);
       setErrorMessage(getErrorMessage(result.error));
       setErrorKey((k) => k + 1);
-    } else {
-      router.push("/");
+      return;
     }
+
+    // Land each role where it works, rather than everyone on the home screen.
+    // Somebody whose whole shift is the delivery queue should not arrive at a
+    // grid of tiles they cannot open - see landingPathForRole().
+    //
+    // The session is read back rather than taken from the sign-in result:
+    // signIn(redirect:false) resolves with the outcome, not the user, so the
+    // role is only knowable once the session endpoint has it.
+    let destination = "/";
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (res.ok) {
+        const s = (await res.json()) as { user?: { role?: string } };
+        destination = landingPathForRole(s.user?.role);
+      }
+    } catch {
+      // Home is a safe destination for every role: its tiles are filtered by
+      // permission, so the worst case is one extra tap.
+    }
+    router.push(destination);
   };
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -90,11 +125,15 @@ export default function LoginForm({
   };
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-black px-4 font-sans text-white antialiased">
+    // print:* throughout this screen exists for one button: "Print this" in the
+    // connect panel. Without it a black full-bleed page and a sign-in form go to
+    // the printer, which wastes most of a cartridge and produces a sheet with a
+    // password on it. Everything except the address and the QR is dropped.
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-black px-4 font-sans text-white antialiased print:min-h-0 print:bg-white print:text-black">
       {/* ───────── Foreground: dim wordmark stacked above the input fields ───────── */}
-      <div className="relative z-10 flex w-full flex-col items-center gap-9 sm:gap-10">
+      <div className="relative z-10 flex w-full flex-col items-center gap-9 sm:gap-10 print:gap-0">
         {/* hero wordmark + subtitle */}
-        <div className="flex w-full flex-col items-center gap-3">
+        <div className="flex w-full flex-col items-center gap-3 print:hidden">
           {/* hero wordmark — dim outline with an emerald line travelling along its borders */}
           <div aria-hidden className="xp-wm w-[min(90vw,760px)] select-none">
             <svg viewBox="0 0 1000 240" className="h-auto w-full overflow-visible">
@@ -118,19 +157,55 @@ export default function LoginForm({
             over rather than leaving someone stuck at a login box on a machine
             they just plugged in. The card disappears for good the moment the
             password is changed - which the POS requires before the sample data
-            can be removed. */}
+            can be removed.
+
+            The three numbered steps are the whole of the onboarding for now.
+            They are here rather than behind the sign-in because the question
+            they answer - "what IS this, and what am I supposed to do with it" -
+            is being asked at this screen, before anyone has clicked anything. */}
         {defaultCredentials && (
-          <div className="xp-rise w-full max-w-xs rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] p-4">
+          <div className="xp-rise w-full max-w-xs rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] p-4 print:hidden">
             <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-300/90">
-              <KeyRound size={13} className="shrink-0" />
-              First time here
+              <Sparkles size={13} className="shrink-0" />
+              Welcome
             </p>
-            <div className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-              <span className="text-white/40">Username</span>
-              <span className="font-mono text-white">{defaultCredentials.username}</span>
-              <span className="text-white/40">Password</span>
-              <span className="font-mono text-white">{defaultCredentials.password}</span>
+
+            <p className="mt-2.5 text-xs leading-relaxed text-white/60">
+              Your POS is installed and running. It already has a{" "}
+              <span className="text-white">sample menu and floor plan</span> loaded, so you can
+              take a practice order in the next minute without setting anything up.
+            </p>
+
+            <ol className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-white/45">
+              <li>
+                <span className="text-emerald-300/80">1.</span> Sign in below and have a look
+                around.
+              </li>
+              <li>
+                <span className="text-emerald-300/80">2.</span> Add your own menu, tables and
+                staff.
+              </li>
+              <li>
+                <span className="text-emerald-300/80">3.</span> When you are ready for real
+                trade, open{" "}
+                <span className="text-white/70">Server Management &rarr; Sample Data</span>. That
+                clears the samples and sets your real password in one step.
+              </li>
+            </ol>
+
+            <div className="mt-3.5 border-t border-white/10 pt-3">
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+                <KeyRound size={11} className="shrink-0" />
+                Sign in with
+              </p>
+              <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+                <span className="text-white/40">Username</span>
+                <span className="font-mono text-white">{defaultCredentials.username}</span>
+                <span className="text-white/40">Password</span>
+                <span className="font-mono text-white">{defaultCredentials.password}</span>
+              </div>
             </div>
+
             <button
               type="button"
               onClick={() => void doSignIn(defaultCredentials.username, defaultCredentials.password)}
@@ -144,11 +219,12 @@ export default function LoginForm({
               {loading ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
               Sign in as {defaultCredentials.username}
             </button>
-            <p className="mt-2.5 text-[10px] leading-relaxed text-white/35">
-              {sampleDataLoading
-                ? "Sample menu and tables are still loading - give it a moment."
-                : "Loaded with a sample menu and floor plan so you can try everything. You will be asked to set a real password before going live."}
-            </p>
+
+            {sampleDataLoading && (
+              <p className="mt-2.5 text-[10px] leading-relaxed text-white/35">
+                The sample menu and tables are still loading — give it a moment.
+              </p>
+            )}
           </div>
         )}
 
@@ -156,7 +232,7 @@ export default function LoginForm({
         {justCreated && (
           <p
             role="status"
-            className="xp-rise flex max-w-xs items-start gap-2 text-xs text-emerald-300/85"
+            className="xp-rise flex max-w-xs items-start gap-2 text-xs text-emerald-300/85 print:hidden"
           >
             <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
             <span>Your owner account is ready. Sign in with it to continue.</span>
@@ -168,7 +244,7 @@ export default function LoginForm({
           autoComplete="off"
           noValidate
           style={{ animationDelay: "0.08s" }}
-          className="xp-rise relative z-10 flex w-full max-w-xs flex-col gap-3.5"
+          className="xp-rise relative z-10 flex w-full max-w-xs flex-col gap-3.5 print:hidden"
         >
         {/* anti-autofill decoys: browsers fill these hidden fields instead */}
         <input type="text" name="_fake_user" autoComplete="username" tabIndex={-1} aria-hidden className="hidden" />
@@ -266,9 +342,14 @@ export default function LoginForm({
         )}
         </form>
 
+        {/* Open on a first run, because that is exactly when somebody is trying
+            to get a second device connected. Collapsed every other time, so the
+            daily sign-in stays two fields and nothing else. */}
+        <ConnectPanel defaultOpen={Boolean(defaultCredentials)} />
+
         <p
           style={{ animationDelay: "0.16s" }}
-          className="xp-rise text-[11px] tracking-wide text-white/25"
+          className="xp-rise text-[11px] tracking-wide text-white/25 print:hidden"
         >
           © {year} XenithPulse · Secure access
         </p>

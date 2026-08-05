@@ -16,9 +16,17 @@ export default function BackupManager({
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
-  const [formData, setFormData] = useState({
+  // Typed against the schema rather than inferred: `type: "local" as const`
+  // narrowed the field to the literal "local", so the select could not set
+  // anything else without an `any` cast to hide it.
+  const [formData, setFormData] = useState<{
+    path: string;
+    type: IBackupPath["type"];
+    backupRetention: number;
+    notes: string;
+  }>({
     path: "",
-    type: "local" as const,
+    type: "local",
     backupRetention: 14,
     notes: "",
   });
@@ -228,7 +236,10 @@ export default function BackupManager({
                 <select
                   value={formData.type}
                   onChange={(e) =>
-                    setFormData({ ...formData, type: e.target.value as any })
+                    setFormData({
+                      ...formData,
+                      type: e.target.value as IBackupPath["type"],
+                    })
                   }
                   className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
                 >

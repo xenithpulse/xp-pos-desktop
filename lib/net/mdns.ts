@@ -21,10 +21,23 @@
 // card and the connect screen always show the numeric address too. See
 // lib/net/addresses.ts.
 //
-// It is also strictly LAN-local: 224.0.0.251 is not routable off the subnet, so
-// nothing here is reachable from the internet.
+// It is also strictly LAN-local, and on a multi-floor site that is the limit
+// that matters: 224.0.0.251 has TTL 1 and is not routable off the subnet, so a
+// tablet on a floor behind its own router will NOT resolve any of these names.
+// That is why the QR code on the connect screen carries the numeric address -
+// the number crosses a router, the name does not.
+//
+// TWO NAMES, ON PURPOSE.
+//   pos.xenithpulse.local  the branded one, and the one on the desktop shortcut
+//                          and the connection card. On the server box itself it
+//                          does not depend on mDNS at all - lib/net/localName.ts
+//                          puts it in the hosts file, so it resolves there even
+//                          with the network unplugged.
+//   xppos.local            kept because a single-label .local name is the most
+//                          widely supported form. Where a resolver is fussy
+//                          about multi-label mDNS, this one still answers.
 
-import { MDNS_HOST, getLanIps } from "./addresses";
+import { MDNS_ALIASES, getLanIps } from "./addresses";
 
 const RECORD_TTL_SECONDS = 120;
 
@@ -74,10 +87,19 @@ export async function startMdnsResponder(): Promise<void> {
     mdns.on("query", (query: MdnsQuery) => {
       if (!query.questions) return;
 
-      const wantsUs = query.questions.some(
-        (q) => (q.type === "A" || q.type === "ANY") && q.name?.toLowerCase() === MDNS_HOST,
-      );
-      if (!wantsUs) return;
+      // Answer for every name this box goes by, and answer using the name that
+      // was ASKED for - a response naming xppos.local does not satisfy a
+      // question about pos.xenithpulse.local, however identical the address.
+      const asked = query.questions
+        .filter((q) => q.type === "A" || q.type === "ANY")
+        .map((q) => q.name?.toLowerCase())
+        // MDNS_ALIASES is `as const`, so its .includes() only accepts the
+        // literal members - which is precisely the type an incoming query name
+        // is not. Widened here rather than dropping the const, because the
+        // literal type is what keeps callers honest elsewhere.
+        .filter((n): n is string => Boolean(n) && (MDNS_ALIASES as readonly string[]).includes(n!));
+
+      if (asked.length === 0) return;
 
       // Resolved per query, never cached. That is the entire point: when DHCP
       // moves the box, the very next answer carries the new address.
@@ -85,18 +107,20 @@ export async function startMdnsResponder(): Promise<void> {
       if (ips.length === 0) return;
 
       mdns.respond({
-        answers: ips.map((ip) => ({
-          name: MDNS_HOST,
-          type: "A",
-          ttl: RECORD_TTL_SECONDS,
-          data: ip,
-        })),
+        answers: asked.flatMap((name) =>
+          ips.map((ip) => ({
+            name,
+            type: "A",
+            ttl: RECORD_TTL_SECONDS,
+            data: ip,
+          })),
+        ),
       });
     });
 
     responder = mdns;
     running = true;
-    console.log(`[mdns] advertising ${MDNS_HOST} on the local network`);
+    console.log(`[mdns] advertising ${MDNS_ALIASES.join(", ")} on the local network`);
   } catch (err) {
     running = false;
     console.error("[mdns] could not start; the POS continues without it:", err);
